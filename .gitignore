@@ -1,0 +1,16 @@
+# Segredos: nunca vão para o GitHub
+.env
+.env.*
+!.env.example
+
+# Dependências e dados locais do n8n
+node_modules/
+.n8n/
+
+# Logs
+*.log
+
+# Sistema operacional e editor
+.DS_Store
+Thumbs.db
+.vscode/
