@@ -16,8 +16,8 @@ Na assessoria de imprensa, o clipping (procurar, ler e organizar as notícias so
 | 1. Coleta | Agendador, configuração do tema, Google News RSS por termo, remoção de duplicadas, filtro de 24h | ✅ Concluída |
 | 2. Agente de Triagem | IA classifica cada notícia (relevância, tom, aderência ao cliente, mensagens-chave) com saída em JSON validado | 🚧 Em andamento |
 | 3. Redator e Revisor | IA monta o relatório do dia e outra IA confere se nada foi inventado | ⏳ |
-| 4. Entrega e registro | Telegram, Gmail e Google Sheets; duas edições por dia (7h e 19h) sem repetir notícias já enviadas | ⏳ |
-| 5. Erros, métricas e hospedagem | Tratamento de falhas, log de cada execução e n8n rodando 24h em nuvem | ⏳ |
+| 4. Entrega e registro | Telegram, Gmail e Google Sheets; execução sob demanda que busca tudo desde a última execução, sem repetir notícias já enviadas | ⏳ |
+| 5. Erros e métricas | Tratamento de falhas e log de cada execução | ⏳ |
 | 6. Portfólio | Diagrama, prints, métricas reais e documentação final | ⏳ |
 
 ## Como funciona (até agora)
