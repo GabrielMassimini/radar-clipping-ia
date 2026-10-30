@@ -1,0 +1,143 @@
+{
+  "name": "Radar de Notícias",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 7
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "id": "91f0dd76-d836-4c2b-8496-9dcef0d36253",
+      "name": "Agendador"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"tema\": \"Automóveis\",\n  \"termos_de_busca\": [\"automóveis\", \"mercado automotivo\", \"carros\"],\n  \"mensagens_chave\": [\"segurança na compra de veículos\", \"carros elétricos\", \"preço de carros usados\"]\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        224,
+        0
+      ],
+      "id": "14a423b7-b91c-457a-820e-043a1a6a6b55",
+      "name": "Configuração"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gera uma URL de busca do Google News para cada termo configurado\nconst { termos_de_busca } = $('Configuração').first().json;\n\nreturn termos_de_busca.map((termo) => ({\n  json: {\n    termo,\n    url: 'https://news.google.com/rss/search?q=' + encodeURIComponent(termo + ' when:1d') +\n      '&hl=pt-BR&gl=BR&ceid=BR:pt-419',\n  },\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "7f20dafa-be16-4ca9-8e83-d1a68830ab1f",
+      "name": "Montar buscas"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        672,
+        0
+      ],
+      "id": "4485a2a3-4cd1-4f70-aa27-f7956a9a9d55",
+      "name": "Coleta RSS",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Limpeza: junta as notícias de todos os termos, remove as repetidas\n// e mantém só as publicadas nas últimas 24 horas.\nconst LIMITE_HORAS = 24;\nconst agora = Date.now();\n\n// Deixa o texto comparável: minúsculo, sem acento e sem pontuação\nconst normalizar = (texto) =>\n  texto.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();\n\nconst vistos = new Set();\nconst noticias = [];\nlet coletadas = 0, duplicadas = 0, antigas = 0, erros = 0;\n\nfor (const item of $input.all()) {\n  const n = item.json;\n\n  // Se um RSS falhou, o n8n entrega um item com \"error\" no lugar da notícia\n  if (n.error || !n.title || !n.link) { erros++; continue; }\n  coletadas++;\n\n  // O Google News escreve o título como \"Título da matéria - Veículo\"\n  const corte = n.title.lastIndexOf(' - ');\n  const titulo = corte > 0 ? n.title.slice(0, corte).trim() : n.title.trim();\n  const veiculo = corte > 0 ? n.title.slice(corte + 3).trim() : 'Desconhecido';\n\n  // Mesma matéria no mesmo veículo = repetida. Em veículos diferentes, conta as duas\n  const chave = normalizar(titulo) + '|' + normalizar(veiculo);\n  if (vistos.has(chave) || vistos.has(n.link)) { duplicadas++; continue; }\n  vistos.add(chave);\n  vistos.add(n.link);\n\n  const data = new Date(n.isoDate || n.pubDate);\n  if (isNaN(data) || agora - data.getTime() > LIMITE_HORAS * 60 * 60 * 1000) { antigas++; continue; }\n\n  noticias.push({\n    titulo,\n    veiculo,\n    data: data.toISOString(),\n    link: n.link,\n    trecho: (n.contentSnippet || '').replace(/\\s+/g, ' ').trim(),\n  });\n}\n\n// Mais recentes primeiro\nnoticias.sort((a, b) => b.data.localeCompare(a.data));\n\n// Os números da coleta vão junto em cada notícia, para o log da Fase 5\nconst resumo_coleta = { coletadas, duplicadas, fora_24h: antigas, erros_rss: erros, aproveitadas: noticias.length };\n\nreturn noticias.map((noticia) => ({ json: { ...noticia, resumo_coleta } }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        0
+      ],
+      "id": "2c783113-747a-40c7-930f-d1e6a777e2bd",
+      "name": "Limpeza"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Agendador": {
+      "main": [
+        [
+          {
+            "node": "Configuração",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configuração": {
+      "main": [
+        [
+          {
+            "node": "Montar buscas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar buscas": {
+      "main": [
+        [
+          {
+            "node": "Coleta RSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Coleta RSS": {
+      "main": [
+        [
+          {
+            "node": "Limpeza",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "timezone": "America/Sao_Paulo",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "c11af932-8bc1-47bc-bdf4-d3ba655b5ca6",
+  "meta": {
+    "instanceId": "02ce8131a7a8391842845720ad2e99cdff21a3165eda3d06f336553d3cf42fae"
+  },
+  "nodeGroups": [],
+  "id": "JQjb2VFTvF7muCks",
+  "tags": []
+}
