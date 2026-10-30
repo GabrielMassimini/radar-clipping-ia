@@ -6,7 +6,10 @@
         "rule": {
           "interval": [
             {
-              "triggerAtHour": 7
+              "triggerAtHour": 10
+            },
+            {
+              "triggerAtHour": 19
             }
           ]
         }
@@ -23,7 +26,7 @@
     {
       "parameters": {
         "mode": "raw",
-        "jsonOutput": "{\n  \"tema\": \"Automóveis\",\n  \"termos_de_busca\": [\"automóveis\", \"mercado automotivo\", \"carros\"],\n  \"mensagens_chave\": [\"segurança na compra de veículos\", \"carros elétricos\", \"preço de carros usados\"]\n}\n",
+        "jsonOutput": "{\n  \"tema\": \"Automóveis\",\n  \"foco_do_cliente\": \"Empresa fictícia: marketplace online de compra e venda de veículos novos, seminovos e usados, para pessoas físicas e lojistas. Interesses: preços e valorização de usados e seminovos, modelos mais procurados, financiamento de veículos, segurança e golpes na negociação online, venda de veículos pela internet, carros elétricos e pesquisas sobre o mercado automotivo.\",\n  \"termos_de_busca\": [\n    \"mercado automotivo\",\n    \"carros usados\",\n    \"seminovos\",\n    \"financiamento de veículos\",\n    \"golpe venda de carros\"\n  ],\n  \"mensagens_chave\": [\n    \"preço de carros usados\",\n    \"demanda por carros usados e seminovos\",\n    \"financiamento de veículos\",\n    \"segurança na compra e venda de veículos\",\n    \"venda de veículos pela internet\",\n    \"carros elétricos\"\n  ]\n}",
         "options": {}
       },
       "type": "n8n-nodes-base.set",
@@ -75,6 +78,143 @@
       ],
       "id": "2c783113-747a-40c7-930f-d1e6a777e2bd",
       "name": "Limpeza"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        144
+      ],
+      "id": "5d558d18-33dc-498f-8ff5-0e0395a6c63d",
+      "name": "Executar agora"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Agrupa as notícias em lotes de 10 para a triagem.\n// Cada notícia ganha um id (1 a 10 dentro do lote) para conferir a resposta da IA.\nconst TAMANHO_LOTE = 10;\nconst config = $('Configuração').first().json;\nconst noticias = $input.all().map(({ json: { resumo_coleta, ...noticia } }) => noticia);\n\nconst mensagens = config.mensagens_chave.map((m) => '- ' + m).join('\\n');\n\nconst lotes = [];\nfor (let i = 0; i < noticias.length; i += TAMANHO_LOTE) {\n  const grupo = noticias.slice(i, i + TAMANHO_LOTE).map((n, j) => ({ id: j + 1, ...n }));\n  const lista = grupo.map((n) => `[${n.id}] (${n.veiculo}) ${n.titulo}`).join('\\n');\n  lotes.push({\n    json: {\n      lote: lotes.length + 1,\n      tema: config.tema,\n      foco_do_cliente: config.foco_do_cliente,\n      noticias: grupo,\n      mensagem: `Mensagens-chave configuradas:\\n${mensagens}\\n\\nNotícias:\\n${lista}`,\n    },\n  });\n}\n\nreturn lotes;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1088,
+        0
+      ],
+      "id": "2f6aec2f-bab3-40c9-92e9-17f8a1dc81f6",
+      "name": "Montar lotes"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.mensagem }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Você é um analista de clipping de uma assessoria de imprensa. Sua tarefa é fazer a triagem de notícias sobre o tema \"{{ $json.tema }}\" para um cliente.\n\nQuem é o cliente e o que interessa a ele:\n{{ $json.foco_do_cliente }}\n\nDe cada notícia você recebe só o id, o veículo e o título. Decida apenas com base nesse texto.\n\nRegras:\n1. relevante = true quando o assunto principal da notícia for o próprio tema: o mercado, o setor, os produtos (incluindo lançamentos, avaliações e saída de linha), dados, estudos, pesquisas, vendas, preços, crédito, tendências ou regulamentação.\n2. A relevância depende só do tema, não do foco do cliente. Uma notícia do tema que está longe dos interesses do cliente continua relevante, com aderencia \"baixa\".\n3. relevante = false quando o tema aparece só como detalhe de uma notícia sobre outro assunto (ocorrências policiais, crimes, acidentes, sorteios, celebridades), e também para anúncios, ofertas e promoções de lojas ou marcas (por exemplo, títulos com \"feirão\", \"oferta\" ou \"a partir de R$\").\n4. Se o título não deixa claro do que a notícia trata, relevante = false.\n5. sentimento: o tom da notícia para o negócio do cliente. \"positivo\" se a notícia é boa para ele, \"negativo\" se é ruim, \"neutro\" se não afeta ou na dúvida.\n6. aderencia: o quanto a notícia está perto dos interesses do cliente descritos acima. \"alta\" se trata diretamente deles, \"media\" se trata do setor de forma geral, \"baixa\" se é do tema mas distante do cliente.\n7. mensagens_chave: marque só as mensagens da lista configurada que aparecem de fato no título, escritas exatamente como estão na lista. Se nenhuma aparecer, devolva uma lista vazia. Não deduza mensagens que o título não traz.\n8. resumo: uma frase de até 25 palavras, em português, reescrevendo o título. Pode manter os números e nomes que estão no título, mas nunca acrescente informações que não estejam nele.\n9. motivo: uma frase explicando por que a notícia é ou não relevante.\n10. id: devolva o número exatamente como recebeu, sem colchetes. Devolva uma classificação para cada id recebido, sem pular nem inventar ids.\n11. O cliente atua no Brasil. Notícias sobre outros países seguem as mesmas regras de relevância, mas a aderencia é no máximo \"baixa\", a não ser que o título trate de efeito no Brasil."
+            }
+          ]
+        },
+        "batching": {
+          "batchSize": 1,
+          "delayBetweenBatches": 5000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1504,
+        0
+      ],
+      "id": "731168f6-fc21-40f5-8cb5-442f6426d722",
+      "name": "Triagem",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash-lite",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        1392,
+        208
+      ],
+      "id": "79f823f0-566f-45ed-9c32-682d24c5e298",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "2ff35PAJzWzIyBV0",
+          "name": "Gemini - Radar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"classificacoes\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"id\": { \"type\": [\"integer\", \"string\"] },\n          \"relevante\": { \"type\": \"boolean\" },\n          \"sentimento\": { \"type\": \"string\", \"enum\": [\"positivo\", \"neutro\", \"negativo\"] },\n          \"aderencia\": { \"type\": \"string\", \"enum\": [\"alta\", \"media\", \"baixa\"] },\n          \"mensagens_chave\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n          \"resumo\": { \"type\": \"string\" },\n          \"motivo\": { \"type\": \"string\" }\n        },\n        \"required\": [\"id\", \"relevante\", \"sentimento\", \"aderencia\", \"mensagens_chave\", \"resumo\", \"motivo\"]\n      }\n    }\n  },\n  \"required\": [\"classificacoes\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1648,
+        208
+      ],
+      "id": "785923cb-7a18-4fc6-8baa-b4c06d867066",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Junta a resposta da IA com os dados de cada notícia e confere se voltaram todos os ids.\n// Notícia sem classificação (lote com erro ou id faltando) é descartada e registrada.\nconst SENTIMENTOS = ['positivo', 'neutro', 'negativo'];\nconst ADERENCIAS = ['alta', 'media', 'baixa'];\nconst mensagensConfiguradas = $('Configuração').first().json.mensagens_chave;\n\nconst noticias = [];\nconst erros = [];\nlet descartadas = 0;\n\n$input.all().forEach((item, i) => {\n  const lote = $('Montar lotes').itemMatching(i).json;\n  const classificacoes = item.json.output?.classificacoes;\n\n  if (!Array.isArray(classificacoes)) {\n    descartadas += lote.noticias.length;\n    erros.push(`Lote ${lote.lote}: ${item.json.error || 'resposta sem classificações'}`);\n    return;\n  }\n\n    // A IA às vezes devolve o id como texto (\"1\" ou \"[1]\"); aqui vira número\n  const porId = new Map(classificacoes.map((c) => [Number(String(c.id).replace(/\\D/g, '')), c]));\n  for (const { id, ...noticia } of lote.noticias) {\n    const c = porId.get(id);\n    if (!c) {\n      descartadas++;\n      erros.push(`Lote ${lote.lote}: notícia ${id} voltou sem classificação`);\n      continue;\n    }\n    noticias.push({\n      ...noticia,\n      relevante: c.relevante === true,\n      sentimento: SENTIMENTOS.includes(c.sentimento) ? c.sentimento : 'neutro',\n      aderencia: ADERENCIAS.includes(c.aderencia) ? c.aderencia : 'baixa',\n      // Só aceita mensagens-chave que existem na Configuração (a IA não pode inventar)\n      mensagens_chave: (c.mensagens_chave || []).filter((m) => mensagensConfiguradas.includes(m)),\n      resumo: c.resumo,\n      motivo: c.motivo,\n    });\n  }\n});\n\nconst resumo_triagem = {\n  classificadas: noticias.length,\n  relevantes: noticias.filter((n) => n.relevante).length,\n  descartadas_por_erro: descartadas,\n  erros,\n};\n\nreturn noticias.map((noticia) => ({ json: { ...noticia, resumo_triagem } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1872,
+        0
+      ],
+      "id": "7984a930-0c50-41a6-a879-8e8c0271c84d",
+      "name": "Validar triagem"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "0bb10006-df1e-4e2d-bf4a-7f55e29669c1",
+              "leftValue": "={{ $json.relevante }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.4,
+      "position": [
+        2096,
+        0
+      ],
+      "id": "6692fcd2-6a7d-482b-9dfe-841e33ff67a4",
+      "name": "Só relevantes"
     }
   ],
   "pinData": {},
@@ -122,6 +262,83 @@
           }
         ]
       ]
+    },
+    "Executar agora": {
+      "main": [
+        [
+          {
+            "node": "Configuração",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpeza": {
+      "main": [
+        [
+          {
+            "node": "Montar lotes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar lotes": {
+      "main": [
+        [
+          {
+            "node": "Triagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Triagem",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Triagem",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Triagem": {
+      "main": [
+        [
+          {
+            "node": "Validar triagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar triagem": {
+      "main": [
+        [
+          {
+            "node": "Só relevantes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -133,8 +350,9 @@
     "callerPolicy": "workflowsFromSameOwner",
     "availableInMCP": false
   },
-  "versionId": "c11af932-8bc1-47bc-bdf4-d3ba655b5ca6",
+  "versionId": "51452992-7895-45b5-a879-e45394bcc0b2",
   "meta": {
+    "templateCredsSetupCompleted": true,
     "instanceId": "02ce8131a7a8391842845720ad2e99cdff21a3165eda3d06f336553d3cf42fae"
   },
   "nodeGroups": [],
