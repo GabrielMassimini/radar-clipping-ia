@@ -68,7 +68,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Limpeza: junta as notícias de todos os termos, remove as repetidas\n// e mantém só as publicadas nas últimas 24 horas.\nconst LIMITE_HORAS = 24;\nconst agora = Date.now();\n\n// Deixa o texto comparável: minúsculo, sem acento e sem pontuação\nconst normalizar = (texto) =>\n  texto.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();\n\nconst vistos = new Set();\nconst noticias = [];\nlet coletadas = 0, duplicadas = 0, antigas = 0, erros = 0;\n\nfor (const item of $input.all()) {\n  const n = item.json;\n\n  // Se um RSS falhou, o n8n entrega um item com \"error\" no lugar da notícia\n  if (n.error || !n.title || !n.link) { erros++; continue; }\n  coletadas++;\n\n  // O Google News escreve o título como \"Título da matéria - Veículo\"\n  const corte = n.title.lastIndexOf(' - ');\n  const titulo = corte > 0 ? n.title.slice(0, corte).trim() : n.title.trim();\n  const veiculo = corte > 0 ? n.title.slice(corte + 3).trim() : 'Desconhecido';\n\n  // Mesma matéria no mesmo veículo = repetida. Em veículos diferentes, conta as duas\n  const chave = normalizar(titulo) + '|' + normalizar(veiculo);\n  if (vistos.has(chave) || vistos.has(n.link)) { duplicadas++; continue; }\n  vistos.add(chave);\n  vistos.add(n.link);\n\n  const data = new Date(n.isoDate || n.pubDate);\n  if (isNaN(data) || agora - data.getTime() > LIMITE_HORAS * 60 * 60 * 1000) { antigas++; continue; }\n\n  noticias.push({\n    titulo,\n    veiculo,\n    data: data.toISOString(),\n    link: n.link,\n    trecho: (n.contentSnippet || '').replace(/\\s+/g, ' ').trim(),\n  });\n}\n\n// Mais recentes primeiro\nnoticias.sort((a, b) => b.data.localeCompare(a.data));\n\n// Os números da coleta vão junto em cada notícia, para o log da Fase 5\nconst resumo_coleta = { coletadas, duplicadas, fora_24h: antigas, erros_rss: erros, aproveitadas: noticias.length };\n\nreturn noticias.map((noticia) => ({ json: { ...noticia, resumo_coleta } }));\n"
+        "jsCode": "// Limpeza: junta as notícias de todos os termos, remove as repetidas\n// e mantém só as publicadas nas últimas 24 horas.\nconst LIMITE_HORAS = 24;\nconst agora = Date.now();\n\n// Deixa o texto comparável: minúsculo, sem acento e sem pontuação\nconst normalizar = (texto) =>\n  texto.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();\n\nconst vistos = new Set();\nconst noticias = [];\nlet coletadas = 0, duplicadas = 0, antigas = 0, erros = 0;\n\nfor (const item of $input.all()) {\n  const n = item.json;\n\n  // Se um RSS falhou, o n8n entrega um item com \"error\" no lugar da notícia\n  if (n.error || !n.title || !n.link) { erros++; continue; }\n  coletadas++;\n\n  // O Google News escreve o título como \"Título da matéria - Veículo\"\n  const corte = n.title.lastIndexOf(' - ');\n  const titulo = (corte > 0 ? n.title.slice(0, corte) : n.title).trim().replace(/[\\s-]+$/, '');\n  const veiculo = corte > 0 ? n.title.slice(corte + 3).trim() : 'Desconhecido';\n\n  // Mesma matéria no mesmo veículo = repetida. Em veículos diferentes, conta as duas\n  const chave = normalizar(titulo) + '|' + normalizar(veiculo);\n  if (vistos.has(chave) || vistos.has(n.link)) { duplicadas++; continue; }\n  vistos.add(chave);\n  vistos.add(n.link);\n\n  const data = new Date(n.isoDate || n.pubDate);\n  if (isNaN(data) || agora - data.getTime() > LIMITE_HORAS * 60 * 60 * 1000) { antigas++; continue; }\n\n  noticias.push({\n    titulo,\n    veiculo,\n    data: data.toISOString(),\n    link: n.link,\n    trecho: (n.contentSnippet || '').replace(/\\s+/g, ' ').trim(),\n  });\n}\n\n// Mais recentes primeiro\nnoticias.sort((a, b) => b.data.localeCompare(a.data));\n\n// Os números da coleta vão junto em cada notícia, para o log da Fase 5\nconst resumo_coleta = { coletadas, duplicadas, fora_24h: antigas, erros_rss: erros, aproveitadas: noticias.length };\n\nreturn noticias.map((noticia) => ({ json: { ...noticia, resumo_coleta } }));\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -123,7 +123,7 @@
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
       "typeVersion": 1.9,
       "position": [
-        1504,
+        1312,
         0
       ],
       "id": "731168f6-fc21-40f5-8cb5-442f6426d722",
@@ -135,36 +135,14 @@
     },
     {
       "parameters": {
-        "modelName": "models/gemini-3.5-flash-lite",
-        "options": {
-          "temperature": 0.2
-        }
-      },
-      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
-      "typeVersion": 1.2,
-      "position": [
-        1392,
-        208
-      ],
-      "id": "79f823f0-566f-45ed-9c32-682d24c5e298",
-      "name": "Google Gemini Chat Model",
-      "credentials": {
-        "googlePalmApi": {
-          "id": "2ff35PAJzWzIyBV0",
-          "name": "Gemini - Radar"
-        }
-      }
-    },
-    {
-      "parameters": {
         "schemaType": "manual",
         "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"classificacoes\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"id\": { \"type\": [\"integer\", \"string\"] },\n          \"relevante\": { \"type\": \"boolean\" },\n          \"sentimento\": { \"type\": \"string\", \"enum\": [\"positivo\", \"neutro\", \"negativo\"] },\n          \"aderencia\": { \"type\": \"string\", \"enum\": [\"alta\", \"media\", \"baixa\"] },\n          \"mensagens_chave\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n          \"resumo\": { \"type\": \"string\" },\n          \"motivo\": { \"type\": \"string\" }\n        },\n        \"required\": [\"id\", \"relevante\", \"sentimento\", \"aderencia\", \"mensagens_chave\", \"resumo\", \"motivo\"]\n      }\n    }\n  },\n  \"required\": [\"classificacoes\"]\n}"
       },
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.3,
       "position": [
-        1648,
-        208
+        1456,
+        160
       ],
       "id": "785923cb-7a18-4fc6-8baa-b4c06d867066",
       "name": "Structured Output Parser"
@@ -176,7 +154,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1872,
+        1664,
         0
       ],
       "id": "7984a930-0c50-41a6-a879-8e8c0271c84d",
@@ -184,37 +162,216 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 4
-          },
-          "conditions": [
-            {
-              "id": "0bb10006-df1e-4e2d-bf4a-7f55e29669c1",
-              "leftValue": "={{ $json.relevante }}",
-              "rightValue": "",
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
+        "jsCode": "// Junta todas as notícias classificadas numa lista única para o Redator.\n// Vão também as não relevantes: se uma cópia da mesma notícia foi relevante,\n// o grupo inteiro entra no relatório (regra aplicada no Validar redação).\nconst config = $('Configuração').first().json;\nconst itens = $input.all().map((item) => item.json);\nconst { resumo_triagem } = itens[0];\nconst noticias = itens.map(({ resumo_triagem, ...n }, i) => ({ id: i + 1, ...n }));\n\nconst lista = noticias\n  .map((n) => `${n.id}. [${n.relevante ? 'relevante' : 'não relevante'}, aderência ${n.aderencia}] (${n.veiculo}) ${n.titulo}`)\n  .join('\\n');\n\nreturn [{ json: {\n  tema: config.tema,\n  foco_do_cliente: config.foco_do_cliente,\n  noticias,\n  resumo_triagem,\n  mensagem: `Notícias do período (${noticias.length}):\\n${lista}`,\n} }];"
       },
-      "type": "n8n-nodes-base.filter",
-      "typeVersion": 2.4,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
-        2096,
+        1888,
         0
       ],
-      "id": "6692fcd2-6a7d-482b-9dfe-841e33ff67a4",
-      "name": "Só relevantes"
+      "id": "8d870906-0adc-4e0c-b395-4ca6155f91a5",
+      "name": "Preparar redação"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.mensagem }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Você é redator de clipping de uma assessoria de imprensa. Sua tarefa é organizar as notícias do período sobre o tema \"{{ $json.tema }}\" para um cliente.\n\nQuem é o cliente e o que interessa a ele:\n{{ $json.foco_do_cliente }}\n\nVocê recebe uma lista de notícias, uma por linha, no formato:\nid. [relevante ou não relevante, aderência] (Veículo) Título\n\nTarefas:\n1. Agrupe as notícias que tratam do mesmo fato (o mesmo acontecimento, anúncio, pesquisa ou lançamento), mesmo que publicadas por veículos diferentes e com títulos diferentes. Notícias sobre assuntos parecidos, mas fatos diferentes, ficam em grupos separados. Uma notícia sem par fica sozinha no seu grupo.\n2. Todo id da lista entra em exatamente um grupo, inclusive os não relevantes. Não pule nem repita ids, e devolva só o número de cada id.\n3. resumo: para cada grupo com pelo menos uma notícia relevante, escreva uma frase de até 30 palavras sobre o fato, usando só informações presentes nos títulos do grupo. Para grupos sem nenhuma notícia relevante, devolva o resumo vazio (\"\").\n4. panorama: de 2 a 3 frases sobre o que marcou o período para o cliente, com base nos grupos relevantes, dando prioridade aos de aderência alta e às notícias negativas. Use só informações presentes nos títulos.\n5. Nunca acrescente números, nomes, lugares, datas, causas ou consequências que não estejam nos títulos. Na dúvida, escreva menos.\n6. Fique perto das palavras dos títulos: não use adjetivos de intensidade ou de opinião que o título não usa (como \"expressivo\", \"significativo\" ou \"recorde\"), não troque nomes próprios por termos genéricos e não afirme mais do que o título afirma (se o título diz \"quer ser\", não escreva \"é\").\n7. Quando um título fala de mais de um fato ou de mais de uma empresa, não misture os detalhes de um com os do outro. Também não ligue fatos de títulos diferentes com relação de causa, efeito ou contexto (\"sob o impacto de\", \"por causa de\", \"com isso\"), a menos que um título faça essa ligação.\n8. Escreva em português do Brasil, em tom jornalístico e neutro."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        2064,
+        0
+      ],
+      "id": "af25084a-62e0-4cc0-ac7b-c720c9a3103e",
+      "name": "Redator",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"panorama\": { \"type\": \"string\" },\n    \"grupos\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"ids\": { \"type\": \"array\", \"items\": { \"type\": [\"integer\", \"string\"] } },\n          \"resumo\": { \"type\": \"string\" }\n        },\n        \"required\": [\"ids\", \"resumo\"]\n      }\n    }\n  },\n  \"required\": [\"panorama\", \"grupos\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        2208,
+        160
+      ],
+      "id": "0458916a-0482-482e-ba60-c18197ae743f",
+      "name": "Structured Output Parser1"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash-lite",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        1312,
+        160
+      ],
+      "id": "79f823f0-566f-45ed-9c32-682d24c5e298",
+      "name": "Gemini - Triagem",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "2ff35PAJzWzIyBV0",
+          "name": "Gemini - Radar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Confere a resposta do Redator e aplica as regras de grupo:\n// - todo id precisa estar em um grupo (os que faltarem viram grupos sozinhos);\n// - o grupo entra no relatório se pelo menos uma cópia foi relevante;\n// - tom e aderência do grupo: o que a maioria das cópias relevantes recebeu.\nconst entrada = $('Preparar redação').first().json;\nconst resposta = $input.first().json;\nconst porId = new Map(entrada.noticias.map((n) => [n.id, n]));\nconst erros = [];\n\n// Valor mais frequente; no empate, vence o que aparece primeiro em \"prioridade\"\nconst maioria = (valores, prioridade) => {\n  const contagem = {};\n  valores.forEach((v) => (contagem[v] = (contagem[v] || 0) + 1));\n  return prioridade.reduce((melhor, v) => ((contagem[v] || 0) > (contagem[melhor] || 0) ? v : melhor));\n};\n\nconst gruposIa = Array.isArray(resposta.output?.grupos) ? resposta.output.grupos : [];\nif (!gruposIa.length) erros.push(`Redator: ${resposta.error || 'resposta sem grupos'}`);\n\nconst usados = new Set();\nconst grupos = [];\nfor (const g of gruposIa) {\n  const membros = [];\n  for (const bruto of g.ids || []) {\n    // A IA às vezes devolve o id como texto (\"1\" ou \"[1]\"); aqui vira número\n    const id = Number(String(bruto).replace(/\\D/g, ''));\n    if (!porId.has(id) || usados.has(id)) continue; // id inventado ou repetido\n    usados.add(id);\n    membros.push(porId.get(id));\n  }\n  if (membros.length) grupos.push({ membros, resumo: (g.resumo || '').trim() });\n}\n\n// Notícias que o Redator esqueceu viram grupos sozinhas\nfor (const n of entrada.noticias) {\n  if (usados.has(n.id)) continue;\n  grupos.push({ membros: [n], resumo: '' });\n  if (gruposIa.length) erros.push(`Redator: notícia ${n.id} ficou fora dos grupos`);\n}\n\nconst relevantes = grupos\n  .filter(({ membros }) => membros.some((n) => n.relevante))\n  .map(({ membros, resumo }) => {\n    const copiasRelevantes = membros.filter((n) => n.relevante);\n    return {\n      titulo: copiasRelevantes[0].titulo,\n      // Sem resumo do Redator, usa o resumo que a Triagem fez\n      resumo: resumo || copiasRelevantes[0].resumo,\n      sentimento: maioria(copiasRelevantes.map((n) => n.sentimento), ['negativo', 'neutro', 'positivo']),\n      aderencia: maioria(copiasRelevantes.map((n) => n.aderencia), ['alta', 'media', 'baixa']),\n      mensagens_chave: [...new Set(membros.flatMap((n) => n.mensagens_chave))],\n      insercoes: membros.map(({ titulo, veiculo, link, data }) => ({ titulo, veiculo, link, data })),\n    };\n  });\n\nconst resumo_redacao = {\n  grupos_relevantes: relevantes.length,\n  insercoes: relevantes.reduce((total, g) => total + g.insercoes.length, 0),\n  erros,\n};\n\nreturn [{ json: {\n  panorama: (resposta.output?.panorama || '').trim(),\n  grupos: relevantes,\n  resumo_triagem: entrada.resumo_triagem,\n  resumo_redacao,\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2368,
+        0
+      ],
+      "id": "683c9d5d-82e1-436d-98f8-19597b0528fc",
+      "name": "Validar redação"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Monta a mensagem do Revisor: cada texto escrito pela IA ao lado dos títulos que ela podia usar.\nconst { panorama, grupos } = $input.first().json;\n\nconst blocos = grupos.map((g, i) => [\n  `Grupo ${i + 1}`,\n  'Títulos:',\n  ...[...new Set(g.insercoes.map((ins) => ins.titulo))].map((t) => `- ${t}`),\n  `Resumo: ${g.resumo}`,\n].join('\\n'));\n\nreturn [{ json: {\n  mensagem: [\n    'PANORAMA (pode usar os títulos de todos os grupos):',\n    panorama || '(sem panorama)',\n    '',\n    'GRUPOS:',\n    blocos.join('\\n\\n'),\n  ].join('\\n'),\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2416,
+        528
+      ],
+      "id": "bf9a1d78-0973-4869-9af1-7682d7f72475",
+      "name": "Preparar revisão"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.mensagem }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "Você é revisor de clipping de uma assessoria de imprensa. Sua única tarefa é conferir se os textos escritos por um redator usam apenas informações presentes nos títulos das notícias.  Você recebe o panorama do período e uma lista de grupos. Cada grupo tem os títulos das notícias e um resumo.  Como revisar: 1. Confira o panorama e todos os grupos, um por um, na ordem, e devolva uma verificação para cada um, mesmo quando estiver tudo certo. Em \"onde\", escreva \"panorama\" ou \"Grupo\" seguido do número. 2. Separe cada informação do texto (fato, número, nome, lugar, data, causa, consequência, comparação ou qualificação) e procure essa informação nos títulos. O resumo de um grupo só pode usar os títulos do próprio grupo. O panorama pode usar os títulos de todos os grupos. 3. Em informacoes_fora_dos_titulos, liste cada informação que não está nos títulos. Exemplos do que deve ser listado: um adjetivo que o título não usa (\"expressiva\", \"recorde\", \"grandes\"); um detalhe atribuído ao fato errado (o título fala de duas empresas e o texto mistura o que é de cada uma); uma afirmação mais forte do que a do título (\"é lançada\" quando o título diz \"quer ser\"); uma generalização (falar de várias quando o título fala de uma). Liste também toda ligação entre fatos que nenhum título faz: um fato apresentado como causa, efeito ou contexto de outro (\"sob o impacto de\", \"por causa de\", \"com isso\"), mesmo quando cada fato, sozinho, está nos títulos. 4. Dizer a mesma coisa com outras palavras não é problema. Sinônimos e mudanças de ordem são aceitos, desde que o sentido seja o mesmo dos títulos. Completar a marca de um modelo citado no título (escrever \"Honda HR-V\" quando o título diz \"HR-V\") também não é problema. 5. Não aponte estilo, gramática ou tamanho. Confira só a fidelidade aos títulos. 6. Em frases_com_problema, copie exatamente as frases do texto que contêm as informações listadas. Se não houver problema, devolva as duas listas vazias."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1504,
+        368
+      ],
+      "id": "ca31d47e-8b1d-46eb-8783-5a83cc2cf154",
+      "name": "Revisor",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.6-flash",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        1504,
+        544
+      ],
+      "id": "14678f0a-5d5d-48d9-ba6d-97510c00e95c",
+      "name": "Gemini - Revisor",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "2ff35PAJzWzIyBV0",
+          "name": "Gemini - Radar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"verificacoes\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"onde\": { \"type\": \"string\" },\n          \"informacoes_fora_dos_titulos\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n          \"frases_com_problema\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } }\n        },\n        \"required\": [\"onde\", \"informacoes_fora_dos_titulos\", \"frases_com_problema\"]\n      }\n    }\n  },\n  \"required\": [\"verificacoes\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1648,
+        544
+      ],
+      "id": "b46441f2-382f-4544-b097-68fadecb6641",
+      "name": "Structured Output Parser2"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aplica a revisão: o que o Revisor apontou sai do relatório.\n// Resumo com problema (ou que ficou sem conferência) é apagado e o grupo fica\n// só com título e veículos; no panorama, saem só as frases com problema.\nconst entrada = $('Validar redação').first().json;\nconst resposta = $input.first().json;\nconst verificacoes = resposta.output?.verificacoes;\nconst grupos = entrada.grupos.map((g) => ({ ...g }));\nlet panorama = entrada.panorama;\nconst problemas = [];\nconst erros = [];\n\n// Deixa o texto comparável: minúsculo, sem acento e sem pontuação\nconst normalizar = (texto) =>\n  String(texto || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();\n\n// Tira do panorama a frase apontada; se não encontrar, tira o panorama inteiro\nconst retirarDoPanorama = (frase) => {\n  const alvo = normalizar(frase);\n  const frases = panorama.split(/(?<=[.!?])\\s+/).filter(Boolean);\n  const restantes = frases.filter((f) => {\n    const atual = normalizar(f);\n    return !(alvo && (atual.includes(alvo) || alvo.includes(atual)));\n  });\n  panorama = !alvo || restantes.length === frases.length ? '' : restantes.join(' ');\n};\n\nif (!Array.isArray(verificacoes)) {\n  // Sem revisão, nada do Redator vai para o relatório sem conferência\n  erros.push(`Revisor: ${resposta.error || 'resposta sem verificações'}`);\n  panorama = '';\n  grupos.forEach((g) => (g.resumo = ''));\n} else {\n  let panoramaConferido = false;\n  const conferidos = new Set();\n\n  for (const v of verificacoes) {\n    const fora = v.informacoes_fora_dos_titulos || [];\n    if (/panorama/i.test(v.onde)) {\n      panoramaConferido = true;\n      if (!fora.length) continue;\n      problemas.push(`Panorama: ${fora.join('; ')}`);\n      const frases = v.frases_com_problema || [];\n      if (!frases.length) panorama = '';\n      frases.forEach((frase) => retirarDoPanorama(frase));\n      continue;\n    }\n    const numero = Number(String(v.onde).replace(/\\D/g, ''));\n    const grupo = grupos[numero - 1];\n    if (!grupo) {\n      erros.push(`Revisor: verificou um grupo que não existe (\"${v.onde}\")`);\n      continue;\n    }\n    conferidos.add(numero - 1);\n    if (fora.length) {\n      problemas.push(`Grupo ${numero}: ${fora.join('; ')}`);\n      grupo.resumo = '';\n    }\n  }\n\n  // O que o Revisor pulou não vai para o relatório sem conferência\n  if (!panoramaConferido && panorama) {\n    panorama = '';\n    erros.push('Revisor: não conferiu o panorama');\n  }\n  grupos.forEach((g, i) => {\n    if (!conferidos.has(i) && g.resumo) {\n      g.resumo = '';\n      erros.push(`Revisor: não conferiu o grupo ${i + 1}`);\n    }\n  });\n}\n\nconst resumo_revisao = {\n  problemas,\n  resumos_retirados: grupos.filter((g, i) => entrada.grupos[i].resumo && !g.resumo).length,\n  panorama_alterado: panorama !== entrada.panorama,\n  erros,\n};\n\nreturn [{ json: { ...entrada, panorama, grupos, resumo_revisao } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1872,
+        368
+      ],
+      "id": "bee95205-c008-4d30-8db5-505ab54be643",
+      "name": "Aplicar revisão"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash",
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        2064,
+        160
+      ],
+      "id": "ccc80e2a-1675-4456-8dd2-a77eaf64d9e3",
+      "name": "Gemini - Redator",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "2ff35PAJzWzIyBV0",
+          "name": "Gemini - Radar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Monta o relatório final a partir dos dados já revisados.\n// Só entram textos da IA que passaram pelo Revisor (panorama e resumos);\n// títulos, veículos, links, contagens e a ordem vêm todos dos dados.\nconst entrada = $input.first().json;\nconst config = $('Configuração').first().json;\nconst coletadas = $('Limpeza').all().length;\nconst agora = $now.setZone('America/Sao_Paulo');\nconst edicao = agora.hour < 14 ? 'manhã' : 'noite';\n\n// Formatação em HTML simples, aceito pelo Telegram e pelo Gmail\nconst escapar = (texto) => String(texto || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst veiculos = (g) => g.insercoes.map((i) => `<a href=\"${escapar(i.link)}\">${escapar(i.veiculo)}</a>`).join(' · ');\n\n// Em cada seção, as negativas vêm primeiro; depois, os fatos com mais veículos\nconst ordemTom = { negativo: 0, neutro: 1, positivo: 2 };\nconst ordenar = (lista) =>\n  [...lista].sort((a, b) => ordemTom[a.sentimento] - ordemTom[b.sentimento] || b.insercoes.length - a.insercoes.length);\n// Escreve \"1 fato\" ou \"2 fatos\"\nconst contar = (n, palavra) => `${n} ${palavra}${n === 1 ? '' : 's'}`;\nconst marca = (g) => (g.sentimento === 'negativo' ? '⚠️ ' : '');\n\nconst blocoCompleto = (g) => [`${marca(g)}<b>${escapar(g.titulo)}</b>`, g.resumo ? escapar(g.resumo) : null, veiculos(g)].filter(Boolean).join('\\n');\nconst blocoCurto = (g) => `${marca(g)}${escapar(g.titulo)}\\n${veiculos(g)}`;\n\nconst secao = (cabecalho, grupos, bloco) =>\n  grupos.length ? [cabecalho, ...ordenar(grupos).map(bloco)].join('\\n\\n') : null;\n\nconst { grupos } = entrada;\nconst tom = (s) => grupos.filter((g) => g.sentimento === s).length;\nconst insercoes = grupos.reduce((total, g) => total + g.insercoes.length, 0);\nconst mensagens = config.mensagens_chave\n  .map((m) => ({ m, total: grupos.filter((g) => g.mensagens_chave.includes(m)).length }))\n  .filter(({ total }) => total > 0)\n  .sort((a, b) => b.total - a.total);\n\nconst relatorio = [\n  `📰 <b>Radar de Notícias – ${escapar(config.tema)}</b>\\n${agora.toFormat('dd/LL/yyyy')} · edição da ${edicao}`,\n  entrada.panorama ? `<b>PANORAMA</b>\\n${escapar(entrada.panorama)}` : null,\n  [\n    '<b>NÚMEROS</b>',\n    `• ${contar(coletadas, 'notícia')} coletadas`,\n    `• ${contar(insercoes, 'relevante')}, sobre ${contar(grupos.length, 'fato')}`,\n    `• Tom: ${contar(tom('negativo'), 'negativo')}, ${contar(tom('neutro'), 'neutro')}, ${contar(tom('positivo'), 'positivo')}`,\n  ].join('\\n'),\n  secao('⭐ <b>DESTAQUES</b>', grupos.filter((g) => g.aderencia === 'alta'), blocoCompleto),\n  secao('📌 <b>SETOR</b>', grupos.filter((g) => g.aderencia === 'media'), blocoCompleto),\n  secao('🔎 <b>OUTRAS</b>', grupos.filter((g) => g.aderencia === 'baixa'), blocoCurto),\n  mensagens.length\n    ? ['<b>MENSAGENS-CHAVE</b>', ...mensagens.map(({ m, total }) => `• ${escapar(m)}: ${contar(total, 'fato')}`)].join('\\n')\n    : null,\n]\n  .filter(Boolean)\n  .join('\\n\\n');\n\nreturn [{ json: { relatorio, edicao, data: agora.toISODate(), ...entrada } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2096,
+        368
+      ],
+      "id": "b661cc55-3728-41ca-8610-5d806d856dae",
+      "name": "Montar relatório"
     }
   ],
   "pinData": {},
@@ -296,17 +453,6 @@
         ]
       ]
     },
-    "Google Gemini Chat Model": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "Triagem",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Structured Output Parser": {
       "ai_outputParser": [
         [
@@ -333,7 +479,128 @@
       "main": [
         [
           {
-            "node": "Só relevantes",
+            "node": "Preparar redação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar redação": {
+      "main": [
+        [
+          {
+            "node": "Redator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser1": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Redator",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini - Triagem": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Triagem",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redator": {
+      "main": [
+        [
+          {
+            "node": "Validar redação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar redação": {
+      "main": [
+        [
+          {
+            "node": "Preparar revisão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar revisão": {
+      "main": [
+        [
+          {
+            "node": "Revisor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini - Revisor": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Revisor",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser2": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Revisor",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revisor": {
+      "main": [
+        [
+          {
+            "node": "Aplicar revisão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini - Redator": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Redator",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aplicar revisão": {
+      "main": [
+        [
+          {
+            "node": "Montar relatório",
             "type": "main",
             "index": 0
           }
@@ -348,9 +615,10 @@
     "timeSavedMode": "fixed",
     "timezone": "America/Sao_Paulo",
     "callerPolicy": "workflowsFromSameOwner",
-    "availableInMCP": false
+    "availableInMCP": false,
+    "executionTimeout": 900
   },
-  "versionId": "51452992-7895-45b5-a879-e45394bcc0b2",
+  "versionId": "991b4e08-4852-4304-8dd0-e011f7b7c2df",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "02ce8131a7a8391842845720ad2e99cdff21a3165eda3d06f336553d3cf42fae"
