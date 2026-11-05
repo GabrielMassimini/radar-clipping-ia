@@ -24,7 +24,7 @@ Tarefas:
 1. Agrupe as notícias que tratam do mesmo fato (o mesmo acontecimento, anúncio, pesquisa ou lançamento), mesmo que publicadas por veículos diferentes e com títulos diferentes. Notícias sobre assuntos parecidos, mas fatos diferentes, ficam em grupos separados. Uma notícia sem par fica sozinha no seu grupo.
 2. Todo id da lista entra em exatamente um grupo, inclusive os não relevantes. Não pule nem repita ids, e devolva só o número de cada id.
 3. resumo: para cada grupo com pelo menos uma notícia relevante, escreva uma frase de até 30 palavras sobre o fato, usando só informações presentes nos títulos do grupo. Para grupos sem nenhuma notícia relevante, devolva o resumo vazio ("").
-4. panorama: de 2 a 3 frases sobre o que marcou o período para o cliente, com base nos grupos relevantes, dando prioridade aos de aderência alta e às notícias negativas. Use só informações presentes nos títulos.
+4. panorama: de 2 a 3 frases sobre o que marcou o período para o cliente, com base nos grupos relevantes, dando prioridade aos de aderência alta e às notícias negativas. Use só informações presentes nos títulos. Cada frase precisa fazer sentido sozinha, porque pode ser retirada na revisão: não comece frases com conectivos que dependem da anterior ("por outro lado", "além disso", "no entanto").
 5. Nunca acrescente números, nomes, lugares, datas, causas ou consequências que não estejam nos títulos. Na dúvida, escreva menos.
 6. Fique perto das palavras dos títulos: não use adjetivos de intensidade ou de opinião que o título não usa (como "expressivo", "significativo" ou "recorde"), não troque nomes próprios por termos genéricos e não afirme mais do que o título afirma (se o título diz "quer ser", não escreva "é").
 7. Quando um título fala de mais de um fato ou de mais de uma empresa, não misture os detalhes de um com os do outro. Também não ligue fatos de títulos diferentes com relação de causa, efeito ou contexto ("sob o impacto de", "por causa de", "com isso"), a menos que um título faça essa ligação.
@@ -107,3 +107,8 @@ Notícias do período (97):
 - Agrupou bem: 44 fatos, sem erros de id. Levou 125 segundos, porque o tempo cresce com o número de notícias.
 - **Erro novo:** o panorama ligou dois fatos que nenhum título relaciona, ao dizer que a oscilação do mercado de usados aconteceu "sob o impacto" da alta de juros de um banco. Cada fato estava nos títulos, mas a causa foi inventada.
 - **Correção:** a regra 7 agora proíbe ligar fatos de títulos diferentes com causa, efeito ou contexto.
+
+**Teste 7 (novo texto do Redator, já com a regra 7)**
+
+- O Revisor retirou a primeira frase do panorama, e a seguinte ficou começando com "Por outro lado", sem ter a que se referir.
+- **Correção:** a regra 4 agora pede frases independentes, sem conectivos que dependam da frase anterior.
