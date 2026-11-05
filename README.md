@@ -16,7 +16,7 @@ Na assessoria de imprensa, o clipping (procurar, ler e organizar as notícias so
 | 1. Coleta | Agendador, configuração do tema, Google News RSS por termo, remoção de duplicadas, filtro de 24h | ✅ Concluída |
 | 2. Agente de Triagem | IA classifica cada notícia (relevância, tom, aderência ao cliente, mensagens-chave) com saída em JSON validado | ✅ Concluída |
 | 3. Redator e Revisor | IA agrupa a mesma notícia e escreve os resumos, outra IA confere se nada foi inventado, e o relatório final é montado | ✅ Concluída |
-| 4. Entrega e registro | Telegram, Gmail e Google Sheets; busca tudo desde a última execução, sem repetir notícias já enviadas | ⏳ |
+| 4. Entrega e registro | Telegram, Gmail e Google Sheets; busca tudo desde a última execução, sem repetir notícias já enviadas | ✅ Concluída |
 | 5. Erros e métricas | Tratamento de falhas e log de cada execução | ⏳ |
 | 6. Portfólio | Diagrama, prints, métricas reais e documentação final | ⏳ |
 
@@ -24,17 +24,22 @@ Na assessoria de imprensa, o clipping (procurar, ler e organizar as notícias so
 
 ```
 Agendador (10h e 19h) ─┐
-                       ├→ Configuração → Montar buscas → Coleta RSS → Limpeza
+                       ├→ Configuração → Ler log → Ler notícias → Calcular janela
 Executar agora ────────┘
+   → Montar buscas → Coleta RSS → Limpeza
    → Montar lotes → Triagem (Gemini) → Validar triagem
    → Preparar redação → Redator (Gemini) → Validar redação
    → Preparar revisão → Revisor (Gemini) → Aplicar revisão → Montar relatório
+   ├→ Dividir para Telegram → Telegram
+   └→ Gmail ┬→ Preparar notícias → Registrar notícias (Sheets)
+            └→ Preparar log → Registrar log (Sheets)
 ```
 
 - **Disparo:** o fluxo roda às 10h e às 19h, ou na hora em que eu clicar em **Executar agora**. O n8n roda no meu computador, então o botão cobre os horários em que ele estiver desligado.
-- **Configuração:** um único nó onde quem usa define o `tema`, o `foco_do_cliente`, os `termos_de_busca` e as `mensagens_chave`. O repositório traz um exemplo fictício de **Automóveis**.
+- **Configuração:** um único nó onde quem usa define o `tema`, o `foco_do_cliente`, os `termos_de_busca`, as `mensagens_chave` e os destinos do relatório. O repositório traz um exemplo fictício de **Automóveis**.
+- **Janela de busca (sem IA):** o fluxo lê na planilha quando rodou pela última vez e busca desde esse momento, com 1 hora de folga. Se o computador ficar desligado por dias, nada se perde: a busca volta até 7 dias. Na primeira execução, sem histórico, usa 24 horas.
 - **Coleta:** uma busca no Google News RSS para cada termo.
-- **Limpeza (sem IA):** junta os resultados, remove repetidas e mantém só as últimas 24h. A mesma matéria em veículos diferentes conta como duas inserções, como no clipping de assessoria.
+- **Limpeza (sem IA):** junta os resultados, remove repetidas, mantém só o que está dentro da janela e tira o que já foi enviado. A mesma matéria em veículos diferentes conta como duas inserções, como no clipping de assessoria.
 - **Triagem (IA):** as notícias vão em lotes de 10 para o Gemini 3.5 Flash Lite, que devolve, para cada uma:
   - **relevância:** se o tema é o assunto principal (ocorrências policiais, sorteios e anúncios ficam de fora)
   - **tom:** positivo, neutro ou negativo para o negócio do cliente
@@ -46,8 +51,12 @@ Executar agora ────────┘
 - **Revisor (IA):** confere cada texto contra os títulos e aponta o que não está neles. Ele não reescreve nada.
 - **Aplicar revisão (sem IA):** o código retira o que foi apontado. O resumo reprovado é apagado, e a notícia fica só com título e veículos. No panorama, sai só a frase com problema. Se o Revisor falhar, o relatório sai sem textos da IA.
 - **Relatório (sem IA):** panorama, números, destaques, setor, outras notícias e mensagens-chave. Em cada seção, as notícias negativas vêm primeiro.
+- **Entrega:** o relatório vai para o Telegram, dividido em mensagens que respeitam o limite de caracteres e de formatações, e para o Gmail, em uma mensagem só. A edição é **manhã** antes das 14h e **noite** a partir daí.
+- **Registro (Google Sheets):** cada notícia enviada vira uma linha na aba `noticias`, e cada execução, uma linha na aba `log`, com os números daquela rodada. Essa planilha é também a memória do fluxo: é dela que ele tira a janela de busca e a lista do que já foi enviado.
 
 Execução de teste da Fase 3, com notícias de um dia novo: **95 notícias classificadas, 48 relevantes, sobre 44 fatos, nenhuma perdida por erro, em cerca de 3 minutos e meio.**
+
+Teste da Fase 4, rodando 1h24 depois de um envio completo: das **117 notícias coletadas, 43 foram reconhecidas como já enviadas e 5 eram novas**, com 2 relevantes. Nenhuma repetiu, e a execução levou 33 segundos.
 
 Os prompts, os schemas, as decisões e os ajustes feitos em cada teste estão na pasta [`prompts/`](prompts/): [Triagem](prompts/01-triagem.md), [Redator](prompts/02-redator.md) e [Revisor](prompts/03-revisor.md).
 
@@ -64,17 +73,29 @@ Testei então os modelos Flash, com o mesmo prompt:
 
 O 3.8 escreveu melhor, mas levou o fluxo a 24 minutos. Fiquei com o 3.6 Flash: como o resumo reprovado sai do relatório, a diferença de qualidade não compensa esse tempo. Com a troca, a execução caiu para algo entre 2 e 3 minutos e meio, conforme o volume de notícias. O fluxo também ganhou um tempo máximo de 15 minutos, porque uma chamada externa pode demorar indefinidamente.
 
+### Decisão: como reconhecer uma notícia já enviada
+
+O plano era usar o link. Antes de construir, comparei duas execuções seguidas: de 80 notícias iguais em título e veículo, só 76 tinham o mesmo link, porque o Google News às vezes gera outro endereço para a mesma matéria. Com esse plano, 1 notícia em cada 20 voltaria repetida. Por isso, a notícia é reconhecida pelo link **ou** pela combinação de título e veículo.
+
 ### Limitações conhecidas
 
 - O RSS do Google News não traz trecho das matérias, só título e veículo. Por isso, os agentes trabalham pelo título: conseguem dizer do que a notícia trata, mas não medir o peso dela. Uma nota curta pode aparecer como destaque.
 - O Revisor reduz os erros, mas não elimina todos. No último teste, ele passou a apontar uma causa inventada no panorama, mas deixou passar uma palavra que forçava o sentido do título ("aceleração nas vendas" no lugar de "vendem mais rápido").
 - Parte dos exemplos dos prompts saiu dos próprios testes. Por isso, o teste decisivo é sempre com notícias que o fluxo nunca viu.
+- Cada busca do RSS traz no máximo 100 notícias. Em uma janela longa, como depois de vários dias com o computador desligado, as mais antigas podem ficar de fora.
+- Só as notícias relevantes vão para a planilha. As descartadas podem ser classificadas de novo se ainda estiverem dentro da janela.
+- Por enquanto, uma falha no envio interrompe o fluxo, e uma execução sem notícias novas termina sem aviso. Esses dois casos são tratados na Fase 5.
+- Na minha rede, o IPv6 falha de vez em quando na conexão com o Telegram. Por isso, o n8n é iniciado com `NODE_OPTIONS=--dns-result-order=ipv4first`, e os envios tentam de novo em caso de erro.
 
 ## Tecnologias
 
 - [n8n](https://n8n.io) (automação, rodando localmente)
 - Google News RSS
 - Gemini API (plano gratuito): Gemini 3.5 Flash Lite na triagem, Gemini 3.6 Flash no Redator e no Revisor
+- Telegram Bot API e Gmail (entrega)
+- Google Sheets (histórico e log)
+
+O acesso à conta Google está descrito na [política de privacidade](docs/privacidade.md).
 
 ## Uso de IA
 
