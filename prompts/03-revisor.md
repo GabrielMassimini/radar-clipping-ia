@@ -111,3 +111,7 @@ Resumo: Texto do resumo.
 - O Revisor apontou a causa inventada, e o código tirou só essa frase do panorama. As outras duas frases ficaram.
 - **O que ainda passou:** "aceleração nas vendas" num título que diz "vendem mais rápido". O Revisor reduz os erros, mas não elimina todos.
 - O exemplo da regra 3 saiu do próprio teste 6, então esse resultado só comprova este caso.
+
+**Teste 8 (texto novo do Redator)**
+
+- Um panorama diferente trouxe outra causa inventada, e o Revisor apontou: a regra 3 pegou um caso que não estava no exemplo do prompt.

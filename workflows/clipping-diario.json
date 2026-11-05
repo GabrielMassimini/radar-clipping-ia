@@ -26,7 +26,7 @@
     {
       "parameters": {
         "mode": "raw",
-        "jsonOutput": "{\n  \"tema\": \"Automóveis\",\n  \"foco_do_cliente\": \"Empresa fictícia: marketplace online de compra e venda de veículos novos, seminovos e usados, para pessoas físicas e lojistas. Interesses: preços e valorização de usados e seminovos, modelos mais procurados, financiamento de veículos, segurança e golpes na negociação online, venda de veículos pela internet, carros elétricos e pesquisas sobre o mercado automotivo.\",\n  \"termos_de_busca\": [\n    \"mercado automotivo\",\n    \"carros usados\",\n    \"seminovos\",\n    \"financiamento de veículos\",\n    \"golpe venda de carros\"\n  ],\n  \"mensagens_chave\": [\n    \"preço de carros usados\",\n    \"demanda por carros usados e seminovos\",\n    \"financiamento de veículos\",\n    \"segurança na compra e venda de veículos\",\n    \"venda de veículos pela internet\",\n    \"carros elétricos\"\n  ]\n}",
+        "jsonOutput": "{\n  \"tema\": \"Automóveis\",\n  \"foco_do_cliente\": \"Empresa fictícia: marketplace online de compra e venda de veículos novos, seminovos e usados, para pessoas físicas e lojistas. Interesses: preços e valorização de usados e seminovos, modelos mais procurados, financiamento de veículos, segurança e golpes na negociação online, venda de veículos pela internet, carros elétricos e pesquisas sobre o mercado automotivo.\",\n  \"termos_de_busca\": [\n    \"mercado automotivo\",\n    \"carros usados\",\n    \"seminovos\",\n    \"financiamento de veículos\",\n    \"golpe venda de carros\"\n  ],\n  \"mensagens_chave\": [\n    \"preço de carros usados\",\n    \"demanda por carros usados e seminovos\",\n    \"financiamento de veículos\",\n    \"segurança na compra e venda de veículos\",\n    \"venda de veículos pela internet\",\n    \"carros elétricos\"\n  ],\n  \"telegram_chat_id\": \"ID_DO_SEU_CHAT\",\n  \"email_destinatario\": \"voce@exemplo.com\",\n  \"planilha_id\": \"ID_DA_SUA_PLANILHA\"\n}",
         "options": {}
       },
       "type": "n8n-nodes-base.set",
@@ -40,12 +40,12 @@
     },
     {
       "parameters": {
-        "jsCode": "// Gera uma URL de busca do Google News para cada termo configurado\nconst { termos_de_busca } = $('Configuração').first().json;\n\nreturn termos_de_busca.map((termo) => ({\n  json: {\n    termo,\n    url: 'https://news.google.com/rss/search?q=' + encodeURIComponent(termo + ' when:1d') +\n      '&hl=pt-BR&gl=BR&ceid=BR:pt-419',\n  },\n}));\n"
+        "jsCode": "// Gera uma URL de busca do Google News para cada termo configurado,\n// cobrindo os dias desde a última execução\nconst { termos_de_busca } = $('Configuração').first().json;\nconst { dias_busca } = $('Calcular janela').first().json;\n\nreturn termos_de_busca.map((termo) => ({\n  json: {\n    termo,\n    url: 'https://news.google.com/rss/search?q=' + encodeURIComponent(`${termo} when:${dias_busca}d`) +\n      '&hl=pt-BR&gl=BR&ceid=BR:pt-419',\n  },\n}));"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        448,
+        1120,
         0
       ],
       "id": "7f20dafa-be16-4ca9-8e83-d1a68830ab1f",
@@ -59,7 +59,7 @@
       "type": "n8n-nodes-base.rssFeedRead",
       "typeVersion": 1.2,
       "position": [
-        672,
+        1344,
         0
       ],
       "id": "4485a2a3-4cd1-4f70-aa27-f7956a9a9d55",
@@ -68,12 +68,12 @@
     },
     {
       "parameters": {
-        "jsCode": "// Limpeza: junta as notícias de todos os termos, remove as repetidas\n// e mantém só as publicadas nas últimas 24 horas.\nconst LIMITE_HORAS = 24;\nconst agora = Date.now();\n\n// Deixa o texto comparável: minúsculo, sem acento e sem pontuação\nconst normalizar = (texto) =>\n  texto.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();\n\nconst vistos = new Set();\nconst noticias = [];\nlet coletadas = 0, duplicadas = 0, antigas = 0, erros = 0;\n\nfor (const item of $input.all()) {\n  const n = item.json;\n\n  // Se um RSS falhou, o n8n entrega um item com \"error\" no lugar da notícia\n  if (n.error || !n.title || !n.link) { erros++; continue; }\n  coletadas++;\n\n  // O Google News escreve o título como \"Título da matéria - Veículo\"\n  const corte = n.title.lastIndexOf(' - ');\n  const titulo = (corte > 0 ? n.title.slice(0, corte) : n.title).trim().replace(/[\\s-]+$/, '');\n  const veiculo = corte > 0 ? n.title.slice(corte + 3).trim() : 'Desconhecido';\n\n  // Mesma matéria no mesmo veículo = repetida. Em veículos diferentes, conta as duas\n  const chave = normalizar(titulo) + '|' + normalizar(veiculo);\n  if (vistos.has(chave) || vistos.has(n.link)) { duplicadas++; continue; }\n  vistos.add(chave);\n  vistos.add(n.link);\n\n  const data = new Date(n.isoDate || n.pubDate);\n  if (isNaN(data) || agora - data.getTime() > LIMITE_HORAS * 60 * 60 * 1000) { antigas++; continue; }\n\n  noticias.push({\n    titulo,\n    veiculo,\n    data: data.toISOString(),\n    link: n.link,\n    trecho: (n.contentSnippet || '').replace(/\\s+/g, ' ').trim(),\n  });\n}\n\n// Mais recentes primeiro\nnoticias.sort((a, b) => b.data.localeCompare(a.data));\n\n// Os números da coleta vão junto em cada notícia, para o log da Fase 5\nconst resumo_coleta = { coletadas, duplicadas, fora_24h: antigas, erros_rss: erros, aproveitadas: noticias.length };\n\nreturn noticias.map((noticia) => ({ json: { ...noticia, resumo_coleta } }));\n"
+        "jsCode": "// Limpeza: junta as notícias de todos os termos, remove as repetidas,\n// mantém só as publicadas dentro da janela e tira as que já foram enviadas.\nconst { horas_janela } = $('Calcular janela').first().json;\nconst agora = Date.now();\n\n// Deixa o texto comparável: minúsculo, sem acento e sem pontuação\nconst normalizar = (texto) =>\n  texto.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();\n\n// O link do Google News às vezes muda, por isso a notícia enviada é reconhecida\n// pelo link ou pela combinação de título e veículo\nconst enviadas = new Set();\nfor (const { json: n } of $('Ler notícias').all()) {\n  if (!n.link) continue; // planilha vazia\n  enviadas.add(n.link);\n  enviadas.add(normalizar(String(n.titulo)) + '|' + normalizar(String(n.veiculo)));\n}\n\nconst vistos = new Set();\nconst noticias = [];\nlet coletadas = 0, duplicadas = 0, antigas = 0, ja_enviadas = 0, erros = 0;\n\nfor (const item of $input.all()) {\n  const n = item.json;\n\n  // Se um RSS falhou, o n8n entrega um item com \"error\" no lugar da notícia\n  if (n.error || !n.title || !n.link) { erros++; continue; }\n  coletadas++;\n\n  // O Google News escreve o título como \"Título da matéria - Veículo\"\n  const corte = n.title.lastIndexOf(' - ');\n  const titulo = (corte > 0 ? n.title.slice(0, corte) : n.title).trim().replace(/[\\s-]+$/, '');\n  const veiculo = corte > 0 ? n.title.slice(corte + 3).trim() : 'Desconhecido';\n\n  // Mesma matéria no mesmo veículo = repetida. Em veículos diferentes, conta as duas\n  const chave = normalizar(titulo) + '|' + normalizar(veiculo);\n  if (vistos.has(chave) || vistos.has(n.link)) { duplicadas++; continue; }\n  vistos.add(chave);\n  vistos.add(n.link);\n\n  if (enviadas.has(chave) || enviadas.has(n.link)) { ja_enviadas++; continue; }\n\n  const data = new Date(n.isoDate || n.pubDate);\n  if (isNaN(data) || agora - data.getTime() > horas_janela * 60 * 60 * 1000) { antigas++; continue; }\n\n  noticias.push({\n    titulo,\n    veiculo,\n    data: data.toISOString(),\n    link: n.link,\n    trecho: (n.contentSnippet || '').replace(/\\s+/g, ' ').trim(),\n  });\n}\n\n// Mais recentes primeiro\nnoticias.sort((a, b) => b.data.localeCompare(a.data));\n\n// Os números da coleta vão junto em cada notícia, para o log da Fase 5\nconst resumo_coleta = { inicio: new Date(agora).toISOString(), horas_janela, coletadas, duplicadas, fora_da_janela: antigas, ja_enviadas, erros_rss: erros, aproveitadas: noticias.length };\n\nreturn noticias.map((noticia) => ({ json: { ...noticia, resumo_coleta } }));"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        896,
+        1568,
         0
       ],
       "id": "2c783113-747a-40c7-930f-d1e6a777e2bd",
@@ -97,7 +97,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1088,
+        1760,
         0
       ],
       "id": "2f6aec2f-bab3-40c9-92e9-17f8a1dc81f6",
@@ -123,7 +123,7 @@
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
       "typeVersion": 1.9,
       "position": [
-        1312,
+        1984,
         0
       ],
       "id": "731168f6-fc21-40f5-8cb5-442f6426d722",
@@ -141,7 +141,7 @@
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.3,
       "position": [
-        1456,
+        2128,
         160
       ],
       "id": "785923cb-7a18-4fc6-8baa-b4c06d867066",
@@ -154,7 +154,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1664,
+        2336,
         0
       ],
       "id": "7984a930-0c50-41a6-a879-8e8c0271c84d",
@@ -167,7 +167,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1888,
+        2560,
         0
       ],
       "id": "8d870906-0adc-4e0c-b395-4ca6155f91a5",
@@ -181,7 +181,7 @@
         "messages": {
           "messageValues": [
             {
-              "message": "=Você é redator de clipping de uma assessoria de imprensa. Sua tarefa é organizar as notícias do período sobre o tema \"{{ $json.tema }}\" para um cliente.\n\nQuem é o cliente e o que interessa a ele:\n{{ $json.foco_do_cliente }}\n\nVocê recebe uma lista de notícias, uma por linha, no formato:\nid. [relevante ou não relevante, aderência] (Veículo) Título\n\nTarefas:\n1. Agrupe as notícias que tratam do mesmo fato (o mesmo acontecimento, anúncio, pesquisa ou lançamento), mesmo que publicadas por veículos diferentes e com títulos diferentes. Notícias sobre assuntos parecidos, mas fatos diferentes, ficam em grupos separados. Uma notícia sem par fica sozinha no seu grupo.\n2. Todo id da lista entra em exatamente um grupo, inclusive os não relevantes. Não pule nem repita ids, e devolva só o número de cada id.\n3. resumo: para cada grupo com pelo menos uma notícia relevante, escreva uma frase de até 30 palavras sobre o fato, usando só informações presentes nos títulos do grupo. Para grupos sem nenhuma notícia relevante, devolva o resumo vazio (\"\").\n4. panorama: de 2 a 3 frases sobre o que marcou o período para o cliente, com base nos grupos relevantes, dando prioridade aos de aderência alta e às notícias negativas. Use só informações presentes nos títulos.\n5. Nunca acrescente números, nomes, lugares, datas, causas ou consequências que não estejam nos títulos. Na dúvida, escreva menos.\n6. Fique perto das palavras dos títulos: não use adjetivos de intensidade ou de opinião que o título não usa (como \"expressivo\", \"significativo\" ou \"recorde\"), não troque nomes próprios por termos genéricos e não afirme mais do que o título afirma (se o título diz \"quer ser\", não escreva \"é\").\n7. Quando um título fala de mais de um fato ou de mais de uma empresa, não misture os detalhes de um com os do outro. Também não ligue fatos de títulos diferentes com relação de causa, efeito ou contexto (\"sob o impacto de\", \"por causa de\", \"com isso\"), a menos que um título faça essa ligação.\n8. Escreva em português do Brasil, em tom jornalístico e neutro."
+              "message": "=Você é redator de clipping de uma assessoria de imprensa. Sua tarefa é organizar as notícias do período sobre o tema \"{{ $json.tema }}\" para um cliente.\n\nQuem é o cliente e o que interessa a ele:\n{{ $json.foco_do_cliente }}\n\nVocê recebe uma lista de notícias, uma por linha, no formato:\nid. [relevante ou não relevante, aderência] (Veículo) Título\n\nTarefas:\n1. Agrupe as notícias que tratam do mesmo fato (o mesmo acontecimento, anúncio, pesquisa ou lançamento), mesmo que publicadas por veículos diferentes e com títulos diferentes. Notícias sobre assuntos parecidos, mas fatos diferentes, ficam em grupos separados. Uma notícia sem par fica sozinha no seu grupo.\n2. Todo id da lista entra em exatamente um grupo, inclusive os não relevantes. Não pule nem repita ids, e devolva só o número de cada id.\n3. resumo: para cada grupo com pelo menos uma notícia relevante, escreva uma frase de até 30 palavras sobre o fato, usando só informações presentes nos títulos do grupo. Para grupos sem nenhuma notícia relevante, devolva o resumo vazio (\"\").\n4. panorama: de 2 a 3 frases sobre o que marcou o período para o cliente, com base nos grupos relevantes, dando prioridade aos de aderência alta e às notícias negativas. Use só informações presentes nos títulos. Cada frase precisa fazer sentido sozinha, porque pode ser retirada na revisão: não comece frases com conectivos que dependem da anterior (\"por outro lado\", \"além disso\", \"no entanto\").\n5. Nunca acrescente números, nomes, lugares, datas, causas ou consequências que não estejam nos títulos. Na dúvida, escreva menos.\n6. Fique perto das palavras dos títulos: não use adjetivos de intensidade ou de opinião que o título não usa (como \"expressivo\", \"significativo\" ou \"recorde\"), não troque nomes próprios por termos genéricos e não afirme mais do que o título afirma (se o título diz \"quer ser\", não escreva \"é\").\n7. Quando um título fala de mais de um fato ou de mais de uma empresa, não misture os detalhes de um com os do outro. Também não ligue fatos de títulos diferentes com relação de causa, efeito ou contexto (\"sob o impacto de\", \"por causa de\", \"com isso\"), a menos que um título faça essa ligação.\n8. Escreva em português do Brasil, em tom jornalístico e neutro."
             }
           ]
         },
@@ -190,7 +190,7 @@
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
       "typeVersion": 1.9,
       "position": [
-        2064,
+        2736,
         0
       ],
       "id": "af25084a-62e0-4cc0-ac7b-c720c9a3103e",
@@ -208,7 +208,7 @@
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.3,
       "position": [
-        2208,
+        2880,
         160
       ],
       "id": "0458916a-0482-482e-ba60-c18197ae743f",
@@ -224,7 +224,7 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
       "typeVersion": 1.2,
       "position": [
-        1312,
+        1984,
         160
       ],
       "id": "79f823f0-566f-45ed-9c32-682d24c5e298",
@@ -243,7 +243,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2368,
+        3040,
         0
       ],
       "id": "683c9d5d-82e1-436d-98f8-19597b0528fc",
@@ -256,7 +256,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2416,
+        3088,
         528
       ],
       "id": "bf9a1d78-0973-4869-9af1-7682d7f72475",
@@ -279,8 +279,8 @@
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
       "typeVersion": 1.9,
       "position": [
-        1504,
-        368
+        32,
+        336
       ],
       "id": "ca31d47e-8b1d-46eb-8783-5a83cc2cf154",
       "name": "Revisor",
@@ -299,8 +299,8 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
       "typeVersion": 1.2,
       "position": [
-        1504,
-        544
+        32,
+        496
       ],
       "id": "14678f0a-5d5d-48d9-ba6d-97510c00e95c",
       "name": "Gemini - Revisor",
@@ -319,8 +319,8 @@
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.3,
       "position": [
-        1648,
-        544
+        176,
+        496
       ],
       "id": "b46441f2-382f-4544-b097-68fadecb6641",
       "name": "Structured Output Parser2"
@@ -332,8 +332,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1872,
-        368
+        336,
+        336
       ],
       "id": "bee95205-c008-4d30-8db5-505ab54be643",
       "name": "Aplicar revisão"
@@ -348,7 +348,7 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
       "typeVersion": 1.2,
       "position": [
-        2064,
+        2736,
         160
       ],
       "id": "ccc80e2a-1675-4456-8dd2-a77eaf64d9e3",
@@ -362,16 +362,436 @@
     },
     {
       "parameters": {
-        "jsCode": "// Monta o relatório final a partir dos dados já revisados.\n// Só entram textos da IA que passaram pelo Revisor (panorama e resumos);\n// títulos, veículos, links, contagens e a ordem vêm todos dos dados.\nconst entrada = $input.first().json;\nconst config = $('Configuração').first().json;\nconst coletadas = $('Limpeza').all().length;\nconst agora = $now.setZone('America/Sao_Paulo');\nconst edicao = agora.hour < 14 ? 'manhã' : 'noite';\n\n// Formatação em HTML simples, aceito pelo Telegram e pelo Gmail\nconst escapar = (texto) => String(texto || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst veiculos = (g) => g.insercoes.map((i) => `<a href=\"${escapar(i.link)}\">${escapar(i.veiculo)}</a>`).join(' · ');\n\n// Em cada seção, as negativas vêm primeiro; depois, os fatos com mais veículos\nconst ordemTom = { negativo: 0, neutro: 1, positivo: 2 };\nconst ordenar = (lista) =>\n  [...lista].sort((a, b) => ordemTom[a.sentimento] - ordemTom[b.sentimento] || b.insercoes.length - a.insercoes.length);\n// Escreve \"1 fato\" ou \"2 fatos\"\nconst contar = (n, palavra) => `${n} ${palavra}${n === 1 ? '' : 's'}`;\nconst marca = (g) => (g.sentimento === 'negativo' ? '⚠️ ' : '');\n\nconst blocoCompleto = (g) => [`${marca(g)}<b>${escapar(g.titulo)}</b>`, g.resumo ? escapar(g.resumo) : null, veiculos(g)].filter(Boolean).join('\\n');\nconst blocoCurto = (g) => `${marca(g)}${escapar(g.titulo)}\\n${veiculos(g)}`;\n\nconst secao = (cabecalho, grupos, bloco) =>\n  grupos.length ? [cabecalho, ...ordenar(grupos).map(bloco)].join('\\n\\n') : null;\n\nconst { grupos } = entrada;\nconst tom = (s) => grupos.filter((g) => g.sentimento === s).length;\nconst insercoes = grupos.reduce((total, g) => total + g.insercoes.length, 0);\nconst mensagens = config.mensagens_chave\n  .map((m) => ({ m, total: grupos.filter((g) => g.mensagens_chave.includes(m)).length }))\n  .filter(({ total }) => total > 0)\n  .sort((a, b) => b.total - a.total);\n\nconst relatorio = [\n  `📰 <b>Radar de Notícias – ${escapar(config.tema)}</b>\\n${agora.toFormat('dd/LL/yyyy')} · edição da ${edicao}`,\n  entrada.panorama ? `<b>PANORAMA</b>\\n${escapar(entrada.panorama)}` : null,\n  [\n    '<b>NÚMEROS</b>',\n    `• ${contar(coletadas, 'notícia')} coletadas`,\n    `• ${contar(insercoes, 'relevante')}, sobre ${contar(grupos.length, 'fato')}`,\n    `• Tom: ${contar(tom('negativo'), 'negativo')}, ${contar(tom('neutro'), 'neutro')}, ${contar(tom('positivo'), 'positivo')}`,\n  ].join('\\n'),\n  secao('⭐ <b>DESTAQUES</b>', grupos.filter((g) => g.aderencia === 'alta'), blocoCompleto),\n  secao('📌 <b>SETOR</b>', grupos.filter((g) => g.aderencia === 'media'), blocoCompleto),\n  secao('🔎 <b>OUTRAS</b>', grupos.filter((g) => g.aderencia === 'baixa'), blocoCurto),\n  mensagens.length\n    ? ['<b>MENSAGENS-CHAVE</b>', ...mensagens.map(({ m, total }) => `• ${escapar(m)}: ${contar(total, 'fato')}`)].join('\\n')\n    : null,\n]\n  .filter(Boolean)\n  .join('\\n\\n');\n\nreturn [{ json: { relatorio, edicao, data: agora.toISODate(), ...entrada } }];"
+        "jsCode": "// Monta o relatório final a partir dos dados já revisados.\n// Só entram textos da IA que passaram pelo Revisor (panorama e resumos);\n// títulos, veículos, links, contagens e a ordem vêm todos dos dados.\nconst entrada = $input.first().json;\nconst config = $('Configuração').first().json;\nconst coletadas = $('Limpeza').all().length;\nconst agora = $now.setZone('America/Sao_Paulo');\nconst edicao = agora.hour < 14 ? 'manhã' : 'noite';\n\n// Formatação em HTML simples, aceito pelo Telegram e pelo Gmail\nconst escapar = (texto) => String(texto || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst veiculos = (g) => g.insercoes.map((i) => `<a href=\"${escapar(i.link)}\">${escapar(i.veiculo)}</a>`).join(' · ');\n\n// Em cada seção, as negativas vêm primeiro; depois, os fatos com mais veículos\nconst ordemTom = { negativo: 0, neutro: 1, positivo: 2 };\nconst ordenar = (lista) =>\n  [...lista].sort((a, b) => ordemTom[a.sentimento] - ordemTom[b.sentimento] || b.insercoes.length - a.insercoes.length);\n// Escreve \"1 fato\" ou \"2 fatos\"\nconst contar = (n, palavra) => `${n} ${palavra}${n === 1 ? '' : 's'}`;\nconst marca = (g) => (g.sentimento === 'negativo' ? '⚠️ ' : '');\n\nconst blocoCompleto = (g) => [`${marca(g)}<b>${escapar(g.titulo)}</b>`, g.resumo ? escapar(g.resumo) : null, veiculos(g)].filter(Boolean).join('\\n');\nconst blocoCurto = (g) => `${marca(g)}${escapar(g.titulo)}\\n${veiculos(g)}`;\n\nconst secao = (cabecalho, grupos, bloco) =>\n  grupos.length ? [cabecalho, ...ordenar(grupos).map(bloco)].join('\\n\\n') : null;\n\nconst { grupos } = entrada;\nconst tom = (s) => grupos.filter((g) => g.sentimento === s).length;\nconst insercoes = grupos.reduce((total, g) => total + g.insercoes.length, 0);\nconst mensagens = config.mensagens_chave\n  .map((m) => ({ m, total: grupos.filter((g) => g.mensagens_chave.includes(m)).length }))\n  .filter(({ total }) => total > 0)\n  .sort((a, b) => b.total - a.total);\n\nconst relatorio = [\n  `📰 <b>Radar de Notícias – ${escapar(config.tema)}</b>\\n${agora.toFormat('dd/LL/yyyy')} · edição da ${edicao}`,\n  entrada.panorama ? `<b>PANORAMA</b>\\n${escapar(entrada.panorama)}` : null,\n  [\n    '<b>NÚMEROS</b>',\n    `• ${coletadas} ${coletadas === 1 ? 'notícia nova' : 'notícias novas'}`,\n    `• ${contar(insercoes, 'relevante')}, sobre ${contar(grupos.length, 'fato')}`,\n    `• Tom: ${contar(tom('negativo'), 'negativo')}, ${contar(tom('neutro'), 'neutro')}, ${contar(tom('positivo'), 'positivo')}`,\n  ].join('\\n'),\n  secao('⭐ <b>DESTAQUES</b>', grupos.filter((g) => g.aderencia === 'alta'), blocoCompleto),\n  secao('📌 <b>SETOR</b>', grupos.filter((g) => g.aderencia === 'media'), blocoCompleto),\n  secao('🔎 <b>OUTRAS</b>', grupos.filter((g) => g.aderencia === 'baixa'), blocoCurto),\n  mensagens.length\n    ? ['<b>MENSAGENS-CHAVE</b>', ...mensagens.map(({ m, total }) => `• ${escapar(m)}: ${contar(total, 'fato')}`)].join('\\n')\n    : null,\n]\n  .filter(Boolean)\n  .join('\\n\\n');\n\nreturn [{ json: { relatorio, edicao, data: agora.toISODate(), ...entrada } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2096,
-        368
+        560,
+        336
       ],
       "id": "b661cc55-3728-41ca-8610-5d806d856dae",
       "name": "Montar relatório"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Divide o relatório em mensagens, porque o Telegram aceita até 4.096 caracteres\n// e cerca de 100 formatações (negritos e links) em cada uma.\n// Cada seção começa em uma mensagem nova, e nada é cortado no meio de um bloco.\nconst MAX_CARACTERES = 3800;\nconst MAX_FORMATACOES = 90;\nconst { relatorio } = $input.first().json;\n\n// O limite conta o texto que aparece na tela, sem as tags e sem o endereço dos links\nconst tamanho = (texto) => texto.replace(/<[^>]+>/g, '').replace(/&(amp|lt|gt);/g, '&').length;\nconst formatacoes = (texto) => (texto.match(/<(b|a)[ >]/g) || []).length;\nconst iniciaSecao = (bloco) => /^(⭐|📌|🔎)/.test(bloco);\n\nconst mensagens = [];\nlet atual = '';\nfor (const bloco of relatorio.split('\\n\\n')) {\n  const junto = atual ? `${atual}\\n\\n${bloco}` : bloco;\n  const cabe = tamanho(junto) <= MAX_CARACTERES && formatacoes(junto) <= MAX_FORMATACOES;\n  if (atual && (iniciaSecao(bloco) || !cabe)) {\n    mensagens.push(atual);\n    atual = bloco;\n  } else {\n    atual = junto;\n  }\n}\nif (atual) mensagens.push(atual);\n\nreturn mensagens.map((mensagem) => ({ json: { mensagem } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        784,
+        336
+      ],
+      "id": "320dac98-3073-4bc8-b4e5-80d9233c70e0",
+      "name": "Dividir para Telegram"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Configuração').first().json.telegram_chat_id }}",
+        "text": "={{ $json.mensagem }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1008,
+        336
+      ],
+      "id": "c8e44b5e-0d03-4f87-a0b1-ca0ad086927f",
+      "name": "Send a text message",
+      "webhookId": "48ea38a7-f086-4a9e-a251-2b7a446b6264",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "telegramApi": {
+          "id": "MUvzkwmdcSjvXbwY",
+          "name": "Telegram - Radar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Configuração').first().json.email_destinatario }}",
+        "subject": "=Radar de Notícias: {{ $json.data.split('-').reverse().join('/') }}, edição da {{ $json.edicao }}",
+        "message": "=<div style=\"font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5;\">{{ $json.relatorio.replace(/\\n/g, '<br>') }}</div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1008,
+        496
+      ],
+      "id": "326eb60d-23ba-47ec-882a-2f0d562070b6",
+      "name": "Send a message",
+      "webhookId": "3e4c97f5-70a5-4749-8827-9e2bf7c3eca4",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "XJ5vg24JgRjKkElu",
+          "name": "Gmail - Radar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Monta uma linha da aba \"noticias\" para cada inserção enviada no relatório.\n// Guarda só título, veículo, data, link, classificação e o resumo da IA.\nconst { grupos, edicao } = $('Montar relatório').first().json;\nconst fuso = 'America/Sao_Paulo';\nconst data_envio = $now.setZone(fuso).toFormat('dd/LL/yyyy HH:mm');\n\nconst linhas = grupos.flatMap((g) =>\n  g.insercoes.map((i) => ({\n    data_envio,\n    edicao,\n    titulo: i.titulo,\n    veiculo: i.veiculo,\n    link: i.link,\n    data_publicacao: DateTime.fromISO(i.data).setZone(fuso).toFormat('dd/LL/yyyy HH:mm'),\n    tom: g.sentimento,\n    aderencia: g.aderencia,\n    resumo: g.resumo,\n  }))\n);\n\nreturn linhas.map((linha) => ({ json: linha }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1232,
+        336
+      ],
+      "id": "130ec379-768f-4d80-a629-4df9cddda54a",
+      "name": "Preparar notícias"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Configuração').first().json.planilha_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "noticias",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "data_envio",
+              "displayName": "data_envio",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "edicao",
+              "displayName": "edicao",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "titulo",
+              "displayName": "titulo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "veiculo",
+              "displayName": "veiculo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "link",
+              "displayName": "link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "data_publicacao",
+              "displayName": "data_publicacao",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "tom",
+              "displayName": "tom",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "aderencia",
+              "displayName": "aderencia",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "resumo",
+              "displayName": "resumo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1440,
+        336
+      ],
+      "id": "c1db1207-363f-4347-b9d2-d219fb74dc81",
+      "name": "Registrar notícias",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "pX1CjAKBcQMqvOnm",
+          "name": "Sheets - Radar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Monta a linha da aba \"log\", com o resumo desta execução.\n// O início da execução é o que a próxima usa para buscar só o que saiu depois.\nconst { edicao, resumo_triagem, resumo_redacao, resumo_revisao } = $('Montar relatório').first().json;\nconst coleta = $('Limpeza').first().json.resumo_coleta;\nconst erros = [...resumo_triagem.erros, ...resumo_redacao.erros, ...resumo_revisao.erros];\n\nreturn [{ json: {\n  inicio_execucao: DateTime.fromISO(coleta.inicio).setZone('America/Sao_Paulo').toISO(),\n  edicao,\n  coletadas: coleta.coletadas,\n  classificadas: resumo_triagem.classificadas,\n  relevantes: resumo_redacao.insercoes,\n  fatos: resumo_redacao.grupos_relevantes,\n  resumos_retirados: resumo_revisao.resumos_retirados,\n  erros: erros.join(' | '),\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1232,
+        496
+      ],
+      "id": "0d61e046-9263-4d5b-a7f0-7db437e9f67c",
+      "name": "Preparar log"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Configuração').first().json.planilha_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "inicio_execucao",
+              "displayName": "inicio_execucao",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "edicao",
+              "displayName": "edicao",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "coletadas",
+              "displayName": "coletadas",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "classificadas",
+              "displayName": "classificadas",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "relevantes",
+              "displayName": "relevantes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fatos",
+              "displayName": "fatos",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "resumos_retirados",
+              "displayName": "resumos_retirados",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "erros",
+              "displayName": "erros",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1440,
+        496
+      ],
+      "id": "f3a2421f-7b20-49da-b2d2-fb5e2fe46055",
+      "name": "Registrar log",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "pX1CjAKBcQMqvOnm",
+          "name": "Sheets - Radar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Configuração').first().json.planilha_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "log",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        448,
+        0
+      ],
+      "id": "3e6dcdc1-c75a-4638-a942-79aae0380cb3",
+      "name": "Ler log",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "pX1CjAKBcQMqvOnm",
+          "name": "Sheets - Radar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Configuração').first().json.planilha_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "noticias",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        672,
+        0
+      ],
+      "id": "4a1b6511-fcde-423c-912b-39b97e48d3f4",
+      "name": "Ler notícias",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "pX1CjAKBcQMqvOnm",
+          "name": "Sheets - Radar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Define até onde a busca volta: desde o início da última execução, mais 1 hora de folga.\n// Sem histórico, usa 24 horas. O teto de 7 dias é o limite prático do RSS do Google News.\nconst PADRAO_HORAS = 24;\nconst FOLGA_HORAS = 1;\nconst TETO_HORAS = 168;\n\nconst inicios = $('Ler log').all()\n  .map((item) => DateTime.fromISO(String(item.json.inicio_execucao || '')))\n  .filter((data) => data.isValid);\n\nconst horas = inicios.length\n  ? Math.ceil($now.diff(DateTime.max(...inicios), 'hours').hours) + FOLGA_HORAS\n  : PADRAO_HORAS;\nconst horas_janela = Math.min(horas, TETO_HORAS);\n\nreturn [{ json: { horas_janela, dias_busca: Math.ceil(horas_janela / 24) } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        0
+      ],
+      "id": "7d33b30a-95c0-4ce3-920e-fce6939bfc78",
+      "name": "Calcular janela"
     }
   ],
   "pinData": {},
@@ -391,7 +811,7 @@
       "main": [
         [
           {
-            "node": "Montar buscas",
+            "node": "Ler log",
             "type": "main",
             "index": 0
           }
@@ -606,6 +1026,104 @@
           }
         ]
       ]
+    },
+    "Montar relatório": {
+      "main": [
+        [
+          {
+            "node": "Dividir para Telegram",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dividir para Telegram": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Preparar notícias",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Preparar log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar notícias": {
+      "main": [
+        [
+          {
+            "node": "Registrar notícias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar log": {
+      "main": [
+        [
+          {
+            "node": "Registrar log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler log": {
+      "main": [
+        [
+          {
+            "node": "Ler notícias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler notícias": {
+      "main": [
+        [
+          {
+            "node": "Calcular janela",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calcular janela": {
+      "main": [
+        [
+          {
+            "node": "Montar buscas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -618,7 +1136,7 @@
     "availableInMCP": false,
     "executionTimeout": 900
   },
-  "versionId": "991b4e08-4852-4304-8dd0-e011f7b7c2df",
+  "versionId": "e43ef097-15a1-4360-bbfd-e11432c47900",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "02ce8131a7a8391842845720ad2e99cdff21a3165eda3d06f336553d3cf42fae"
