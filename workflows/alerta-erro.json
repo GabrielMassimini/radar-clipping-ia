@@ -1,0 +1,129 @@
+{
+  "name": "Radar - Alerta de Erro",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "129bcc52-6b2d-49eb-b406-3c7df4a30929",
+      "name": "Error Trigger"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "687ec1e3-776d-4fa6-9446-31401ddf9127",
+              "name": "telegram_chat_id",
+              "value": "ID_DO_SEU_CHAT",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        224,
+        0
+      ],
+      "id": "8edc1df1-d86f-4764-bf8b-9ad32c61e310",
+      "name": "Configuração"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Monta o aviso de falha com os dados que o n8n entrega ao Error Trigger\nconst { execution, workflow } = $('Error Trigger').first().json;\nconst escapar = (texto) => String(texto || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n\nconst mensagem = [\n  `⚠️ <b>${escapar(workflow.name)} falhou</b>`,\n  `Nó: ${escapar(execution.lastNodeExecuted || 'desconhecido')}`,\n  `Erro: ${escapar(execution.error?.message || 'sem mensagem').slice(0, 500)}`,\n  execution.url ? `<a href=\"${escapar(execution.url)}\">Abrir a execução</a>` : null,\n].filter(Boolean).join('\\n');\n\nreturn [{ json: { mensagem } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "ff069d85-8908-441f-a665-89b2b7e76066",
+      "name": "Montar alerta"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Configuração').first().json.telegram_chat_id }}",
+        "text": "={{ $json.mensagem }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        672,
+        0
+      ],
+      "id": "bc65d766-fa22-4e9e-a99c-670d47540368",
+      "name": "Send a text message",
+      "webhookId": "f2a30bd4-f060-4ed5-82cd-e91ea02228e0",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "telegramApi": {
+          "id": "MUvzkwmdcSjvXbwY",
+          "name": "Telegram - Radar"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Configuração",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configuração": {
+      "main": [
+        [
+          {
+            "node": "Montar alerta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar alerta": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "44919c6b-d981-4ea3-92c2-8ea521015f66",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "02ce8131a7a8391842845720ad2e99cdff21a3165eda3d06f336553d3cf42fae"
+  },
+  "nodeGroups": [],
+  "id": "pg8622UgU8WrwCVy",
+  "tags": []
+}

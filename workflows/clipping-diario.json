@@ -68,7 +68,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Limpeza: junta as notícias de todos os termos, remove as repetidas,\n// mantém só as publicadas dentro da janela e tira as que já foram enviadas.\nconst { horas_janela } = $('Calcular janela').first().json;\nconst agora = Date.now();\n\n// Deixa o texto comparável: minúsculo, sem acento e sem pontuação\nconst normalizar = (texto) =>\n  texto.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();\n\n// O link do Google News às vezes muda, por isso a notícia enviada é reconhecida\n// pelo link ou pela combinação de título e veículo\nconst enviadas = new Set();\nfor (const { json: n } of $('Ler notícias').all()) {\n  if (!n.link) continue; // planilha vazia\n  enviadas.add(n.link);\n  enviadas.add(normalizar(String(n.titulo)) + '|' + normalizar(String(n.veiculo)));\n}\n\nconst vistos = new Set();\nconst noticias = [];\nlet coletadas = 0, duplicadas = 0, antigas = 0, ja_enviadas = 0, erros = 0;\n\nfor (const item of $input.all()) {\n  const n = item.json;\n\n  // Se um RSS falhou, o n8n entrega um item com \"error\" no lugar da notícia\n  if (n.error || !n.title || !n.link) { erros++; continue; }\n  coletadas++;\n\n  // O Google News escreve o título como \"Título da matéria - Veículo\"\n  const corte = n.title.lastIndexOf(' - ');\n  const titulo = (corte > 0 ? n.title.slice(0, corte) : n.title).trim().replace(/[\\s-]+$/, '');\n  const veiculo = corte > 0 ? n.title.slice(corte + 3).trim() : 'Desconhecido';\n\n  // Mesma matéria no mesmo veículo = repetida. Em veículos diferentes, conta as duas\n  const chave = normalizar(titulo) + '|' + normalizar(veiculo);\n  if (vistos.has(chave) || vistos.has(n.link)) { duplicadas++; continue; }\n  vistos.add(chave);\n  vistos.add(n.link);\n\n  if (enviadas.has(chave) || enviadas.has(n.link)) { ja_enviadas++; continue; }\n\n  const data = new Date(n.isoDate || n.pubDate);\n  if (isNaN(data) || agora - data.getTime() > horas_janela * 60 * 60 * 1000) { antigas++; continue; }\n\n  noticias.push({\n    titulo,\n    veiculo,\n    data: data.toISOString(),\n    link: n.link,\n    trecho: (n.contentSnippet || '').replace(/\\s+/g, ' ').trim(),\n  });\n}\n\n// Mais recentes primeiro\nnoticias.sort((a, b) => b.data.localeCompare(a.data));\n\n// Os números da coleta vão junto em cada notícia, para o log da Fase 5\nconst resumo_coleta = { inicio: new Date(agora).toISOString(), horas_janela, coletadas, duplicadas, fora_da_janela: antigas, ja_enviadas, erros_rss: erros, aproveitadas: noticias.length };\n\nreturn noticias.map((noticia) => ({ json: { ...noticia, resumo_coleta } }));"
+        "jsCode": "// Limpeza: junta as notícias de todos os termos, remove as repetidas,\n// mantém só as publicadas dentro da janela e tira as que já foram enviadas.\nconst { horas_janela } = $('Calcular janela').first().json;\nconst agora = Date.now();\n\n// Deixa o texto comparável: minúsculo, sem acento e sem pontuação\nconst normalizar = (texto) =>\n  texto.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();\n\n// O link do Google News às vezes muda, por isso a notícia enviada é reconhecida\n// pelo link ou pela combinação de título e veículo\nconst enviadas = new Set();\nfor (const { json: n } of $('Ler notícias').all()) {\n  if (!n.link) continue; // planilha vazia\n  enviadas.add(n.link);\n  enviadas.add(normalizar(String(n.titulo)) + '|' + normalizar(String(n.veiculo)));\n}\n\nconst vistos = new Set();\nconst noticias = [];\nlet coletadas = 0, duplicadas = 0, antigas = 0, ja_enviadas = 0, erros = 0;\n\nfor (const item of $input.all()) {\n  const n = item.json;\n\n  // Se um RSS falhou, o n8n entrega um item com \"error\" no lugar da notícia\n  if (n.error || !n.title || !n.link) { erros++; continue; }\n  coletadas++;\n\n  // O Google News escreve o título como \"Título da matéria - Veículo\"\n  const corte = n.title.lastIndexOf(' - ');\n  const titulo = (corte > 0 ? n.title.slice(0, corte) : n.title).trim().replace(/[\\s-]+$/, '');\n  const veiculo = corte > 0 ? n.title.slice(corte + 3).trim() : 'Desconhecido';\n\n  // Mesma matéria no mesmo veículo = repetida. Em veículos diferentes, conta as duas\n  const chave = normalizar(titulo) + '|' + normalizar(veiculo);\n  if (vistos.has(chave) || vistos.has(n.link)) { duplicadas++; continue; }\n  vistos.add(chave);\n  vistos.add(n.link);\n\n  if (enviadas.has(chave) || enviadas.has(n.link)) { ja_enviadas++; continue; }\n\n  const data = new Date(n.isoDate || n.pubDate);\n  if (isNaN(data) || agora - data.getTime() > horas_janela * 60 * 60 * 1000) { antigas++; continue; }\n\n  noticias.push({\n    titulo,\n    veiculo,\n    data: data.toISOString(),\n    link: n.link,\n    trecho: (n.contentSnippet || '').replace(/\\s+/g, ' ').trim(),\n  });\n}\n\n// Mais recentes primeiro\nnoticias.sort((a, b) => b.data.localeCompare(a.data));\n\n// Os números da coleta vão junto em cada notícia, para o log da Fase 5\nconst resumo_coleta = { inicio: new Date(agora).toISOString(), horas_janela, coletadas, duplicadas, fora_da_janela: antigas, ja_enviadas, erros_rss: erros, aproveitadas: noticias.length };\n\n// Sem notícia nova, segue um item só, com os números da coleta, para o aviso\nif (!noticias.length) return [{ json: { sem_novidades: true, resumo_coleta } }];\n\nreturn noticias.map((noticia) => ({ json: { ...noticia, resumo_coleta } }));"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -116,8 +116,8 @@
           ]
         },
         "batching": {
-          "batchSize": 1,
-          "delayBetweenBatches": 5000
+          "batchSize": 3,
+          "delayBetweenBatches": 15000
         }
       },
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
@@ -149,7 +149,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Junta a resposta da IA com os dados de cada notícia e confere se voltaram todos os ids.\n// Notícia sem classificação (lote com erro ou id faltando) é descartada e registrada.\nconst SENTIMENTOS = ['positivo', 'neutro', 'negativo'];\nconst ADERENCIAS = ['alta', 'media', 'baixa'];\nconst mensagensConfiguradas = $('Configuração').first().json.mensagens_chave;\n\nconst noticias = [];\nconst erros = [];\nlet descartadas = 0;\n\n$input.all().forEach((item, i) => {\n  const lote = $('Montar lotes').itemMatching(i).json;\n  const classificacoes = item.json.output?.classificacoes;\n\n  if (!Array.isArray(classificacoes)) {\n    descartadas += lote.noticias.length;\n    erros.push(`Lote ${lote.lote}: ${item.json.error || 'resposta sem classificações'}`);\n    return;\n  }\n\n    // A IA às vezes devolve o id como texto (\"1\" ou \"[1]\"); aqui vira número\n  const porId = new Map(classificacoes.map((c) => [Number(String(c.id).replace(/\\D/g, '')), c]));\n  for (const { id, ...noticia } of lote.noticias) {\n    const c = porId.get(id);\n    if (!c) {\n      descartadas++;\n      erros.push(`Lote ${lote.lote}: notícia ${id} voltou sem classificação`);\n      continue;\n    }\n    noticias.push({\n      ...noticia,\n      relevante: c.relevante === true,\n      sentimento: SENTIMENTOS.includes(c.sentimento) ? c.sentimento : 'neutro',\n      aderencia: ADERENCIAS.includes(c.aderencia) ? c.aderencia : 'baixa',\n      // Só aceita mensagens-chave que existem na Configuração (a IA não pode inventar)\n      mensagens_chave: (c.mensagens_chave || []).filter((m) => mensagensConfiguradas.includes(m)),\n      resumo: c.resumo,\n      motivo: c.motivo,\n    });\n  }\n});\n\nconst resumo_triagem = {\n  classificadas: noticias.length,\n  relevantes: noticias.filter((n) => n.relevante).length,\n  descartadas_por_erro: descartadas,\n  erros,\n};\n\nreturn noticias.map((noticia) => ({ json: { ...noticia, resumo_triagem } }));"
+        "jsCode": "// Junta a resposta da IA com os dados de cada notícia e confere se voltaram todos os ids.\n// Notícia sem classificação (lote com erro ou id faltando) é descartada e registrada.\nconst SENTIMENTOS = ['positivo', 'neutro', 'negativo'];\nconst ADERENCIAS = ['alta', 'media', 'baixa'];\nconst mensagensConfiguradas = $('Configuração').first().json.mensagens_chave;\n\nconst noticias = [];\nconst erros = [];\nlet descartadas = 0;\n\n$input.all().forEach((item, i) => {\n  const lote = $('Montar lotes').itemMatching(i).json;\n  const classificacoes = item.json.output?.classificacoes;\n\n  if (!Array.isArray(classificacoes)) {\n    descartadas += lote.noticias.length;\n    erros.push(`Lote ${lote.lote}: ${item.json.error || 'resposta sem classificações'}`);\n    return;\n  }\n\n    // A IA às vezes devolve o id como texto (\"1\" ou \"[1]\"); aqui vira número\n  const porId = new Map(classificacoes.map((c) => [Number(String(c.id).replace(/\\D/g, '')), c]));\n  for (const { id, ...noticia } of lote.noticias) {\n    const c = porId.get(id);\n    if (!c) {\n      descartadas++;\n      erros.push(`Lote ${lote.lote}: notícia ${id} voltou sem classificação`);\n      continue;\n    }\n    noticias.push({\n      ...noticia,\n      relevante: c.relevante === true,\n      sentimento: SENTIMENTOS.includes(c.sentimento) ? c.sentimento : 'neutro',\n      aderencia: ADERENCIAS.includes(c.aderencia) ? c.aderencia : 'baixa',\n      // Só aceita mensagens-chave que existem na Configuração (a IA não pode inventar)\n      mensagens_chave: (c.mensagens_chave || []).filter((m) => mensagensConfiguradas.includes(m)),\n      resumo: c.resumo,\n      motivo: c.motivo,\n    });\n  }\n});\n\nconst resumo_triagem = {\n  classificadas: noticias.length,\n  relevantes: noticias.filter((n) => n.relevante).length,\n  descartadas_por_erro: descartadas,\n  erros,\n  concluido_em: Date.now(),\n};\n\n// Se nenhum lote foi classificado, é falha de verdade: o erro para o fluxo e dispara o alerta\nif (!noticias.length) throw new Error(`Triagem falhou em todos os lotes: ${erros.slice(0, 3).join(' | ')}`);\n\nreturn noticias.map((noticia) => ({ json: { ...noticia, resumo_triagem } }));"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -190,7 +190,7 @@
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
       "typeVersion": 1.9,
       "position": [
-        2736,
+        2960,
         0
       ],
       "id": "af25084a-62e0-4cc0-ac7b-c720c9a3103e",
@@ -208,7 +208,7 @@
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.3,
       "position": [
-        2880,
+        3104,
         160
       ],
       "id": "0458916a-0482-482e-ba60-c18197ae743f",
@@ -238,12 +238,12 @@
     },
     {
       "parameters": {
-        "jsCode": "// Confere a resposta do Redator e aplica as regras de grupo:\n// - todo id precisa estar em um grupo (os que faltarem viram grupos sozinhos);\n// - o grupo entra no relatório se pelo menos uma cópia foi relevante;\n// - tom e aderência do grupo: o que a maioria das cópias relevantes recebeu.\nconst entrada = $('Preparar redação').first().json;\nconst resposta = $input.first().json;\nconst porId = new Map(entrada.noticias.map((n) => [n.id, n]));\nconst erros = [];\n\n// Valor mais frequente; no empate, vence o que aparece primeiro em \"prioridade\"\nconst maioria = (valores, prioridade) => {\n  const contagem = {};\n  valores.forEach((v) => (contagem[v] = (contagem[v] || 0) + 1));\n  return prioridade.reduce((melhor, v) => ((contagem[v] || 0) > (contagem[melhor] || 0) ? v : melhor));\n};\n\nconst gruposIa = Array.isArray(resposta.output?.grupos) ? resposta.output.grupos : [];\nif (!gruposIa.length) erros.push(`Redator: ${resposta.error || 'resposta sem grupos'}`);\n\nconst usados = new Set();\nconst grupos = [];\nfor (const g of gruposIa) {\n  const membros = [];\n  for (const bruto of g.ids || []) {\n    // A IA às vezes devolve o id como texto (\"1\" ou \"[1]\"); aqui vira número\n    const id = Number(String(bruto).replace(/\\D/g, ''));\n    if (!porId.has(id) || usados.has(id)) continue; // id inventado ou repetido\n    usados.add(id);\n    membros.push(porId.get(id));\n  }\n  if (membros.length) grupos.push({ membros, resumo: (g.resumo || '').trim() });\n}\n\n// Notícias que o Redator esqueceu viram grupos sozinhas\nfor (const n of entrada.noticias) {\n  if (usados.has(n.id)) continue;\n  grupos.push({ membros: [n], resumo: '' });\n  if (gruposIa.length) erros.push(`Redator: notícia ${n.id} ficou fora dos grupos`);\n}\n\nconst relevantes = grupos\n  .filter(({ membros }) => membros.some((n) => n.relevante))\n  .map(({ membros, resumo }) => {\n    const copiasRelevantes = membros.filter((n) => n.relevante);\n    return {\n      titulo: copiasRelevantes[0].titulo,\n      // Sem resumo do Redator, usa o resumo que a Triagem fez\n      resumo: resumo || copiasRelevantes[0].resumo,\n      sentimento: maioria(copiasRelevantes.map((n) => n.sentimento), ['negativo', 'neutro', 'positivo']),\n      aderencia: maioria(copiasRelevantes.map((n) => n.aderencia), ['alta', 'media', 'baixa']),\n      mensagens_chave: [...new Set(membros.flatMap((n) => n.mensagens_chave))],\n      insercoes: membros.map(({ titulo, veiculo, link, data }) => ({ titulo, veiculo, link, data })),\n    };\n  });\n\nconst resumo_redacao = {\n  grupos_relevantes: relevantes.length,\n  insercoes: relevantes.reduce((total, g) => total + g.insercoes.length, 0),\n  erros,\n};\n\nreturn [{ json: {\n  panorama: (resposta.output?.panorama || '').trim(),\n  grupos: relevantes,\n  resumo_triagem: entrada.resumo_triagem,\n  resumo_redacao,\n} }];"
+        "jsCode": "// Confere a resposta do Redator e aplica as regras de grupo:\n// - todo id precisa estar em um grupo (os que faltarem viram grupos sozinhos);\n// - o grupo entra no relatório se pelo menos uma cópia foi relevante;\n// - tom e aderência do grupo: o que a maioria das cópias relevantes recebeu.\nconst entrada = $('Preparar redação').first().json;\nconst resposta = $input.first().json;\nconst porId = new Map(entrada.noticias.map((n) => [n.id, n]));\nconst erros = [];\n\n// Valor mais frequente; no empate, vence o que aparece primeiro em \"prioridade\"\nconst maioria = (valores, prioridade) => {\n  const contagem = {};\n  valores.forEach((v) => (contagem[v] = (contagem[v] || 0) + 1));\n  return prioridade.reduce((melhor, v) => ((contagem[v] || 0) > (contagem[melhor] || 0) ? v : melhor));\n};\n\nconst gruposIa = Array.isArray(resposta.output?.grupos) ? resposta.output.grupos : [];\nif (!gruposIa.length) erros.push(`Redator: ${resposta.error || 'resposta sem grupos'}`);\n\nconst usados = new Set();\nconst grupos = [];\nfor (const g of gruposIa) {\n  const membros = [];\n  for (const bruto of g.ids || []) {\n    // A IA às vezes devolve o id como texto (\"1\" ou \"[1]\"); aqui vira número\n    const id = Number(String(bruto).replace(/\\D/g, ''));\n    if (!porId.has(id) || usados.has(id)) continue; // id inventado ou repetido\n    usados.add(id);\n    membros.push(porId.get(id));\n  }\n  if (membros.length) grupos.push({ membros, resumo: (g.resumo || '').trim() });\n}\n\n// Notícias que o Redator esqueceu viram grupos sozinhas\nfor (const n of entrada.noticias) {\n  if (usados.has(n.id)) continue;\n  grupos.push({ membros: [n], resumo: '' });\n  if (gruposIa.length) erros.push(`Redator: notícia ${n.id} ficou fora dos grupos`);\n}\n\nconst relevantes = grupos\n  .filter(({ membros }) => membros.some((n) => n.relevante))\n  .map(({ membros, resumo }) => {\n    const copiasRelevantes = membros.filter((n) => n.relevante);\n    return {\n      titulo: copiasRelevantes[0].titulo,\n      // Sem resumo do Redator, usa o resumo que a Triagem fez\n      resumo: resumo || copiasRelevantes[0].resumo,\n      sentimento: maioria(copiasRelevantes.map((n) => n.sentimento), ['negativo', 'neutro', 'positivo']),\n      aderencia: maioria(copiasRelevantes.map((n) => n.aderencia), ['alta', 'media', 'baixa']),\n      mensagens_chave: [...new Set(membros.flatMap((n) => n.mensagens_chave))],\n      insercoes: membros.map(({ titulo, veiculo, link, data }) => ({ titulo, veiculo, link, data })),\n    };\n  });\n\nconst resumo_redacao = {\n  grupos_relevantes: relevantes.length,\n  insercoes: relevantes.reduce((total, g) => total + g.insercoes.length, 0),\n  erros,\n  concluido_em: Date.now(),\n};\n\nreturn [{ json: {\n  panorama: (resposta.output?.panorama || '').trim(),\n  grupos: relevantes,\n  resumo_triagem: entrada.resumo_triagem,\n  resumo_redacao,\n} }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3040,
+        3264,
         0
       ],
       "id": "683c9d5d-82e1-436d-98f8-19597b0528fc",
@@ -256,7 +256,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3088,
+        3312,
         528
       ],
       "id": "bf9a1d78-0973-4869-9af1-7682d7f72475",
@@ -327,7 +327,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Aplica a revisão: o que o Revisor apontou sai do relatório.\n// Resumo com problema (ou que ficou sem conferência) é apagado e o grupo fica\n// só com título e veículos; no panorama, saem só as frases com problema.\nconst entrada = $('Validar redação').first().json;\nconst resposta = $input.first().json;\nconst verificacoes = resposta.output?.verificacoes;\nconst grupos = entrada.grupos.map((g) => ({ ...g }));\nlet panorama = entrada.panorama;\nconst problemas = [];\nconst erros = [];\n\n// Deixa o texto comparável: minúsculo, sem acento e sem pontuação\nconst normalizar = (texto) =>\n  String(texto || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();\n\n// Tira do panorama a frase apontada; se não encontrar, tira o panorama inteiro\nconst retirarDoPanorama = (frase) => {\n  const alvo = normalizar(frase);\n  const frases = panorama.split(/(?<=[.!?])\\s+/).filter(Boolean);\n  const restantes = frases.filter((f) => {\n    const atual = normalizar(f);\n    return !(alvo && (atual.includes(alvo) || alvo.includes(atual)));\n  });\n  panorama = !alvo || restantes.length === frases.length ? '' : restantes.join(' ');\n};\n\nif (!Array.isArray(verificacoes)) {\n  // Sem revisão, nada do Redator vai para o relatório sem conferência\n  erros.push(`Revisor: ${resposta.error || 'resposta sem verificações'}`);\n  panorama = '';\n  grupos.forEach((g) => (g.resumo = ''));\n} else {\n  let panoramaConferido = false;\n  const conferidos = new Set();\n\n  for (const v of verificacoes) {\n    const fora = v.informacoes_fora_dos_titulos || [];\n    if (/panorama/i.test(v.onde)) {\n      panoramaConferido = true;\n      if (!fora.length) continue;\n      problemas.push(`Panorama: ${fora.join('; ')}`);\n      const frases = v.frases_com_problema || [];\n      if (!frases.length) panorama = '';\n      frases.forEach((frase) => retirarDoPanorama(frase));\n      continue;\n    }\n    const numero = Number(String(v.onde).replace(/\\D/g, ''));\n    const grupo = grupos[numero - 1];\n    if (!grupo) {\n      erros.push(`Revisor: verificou um grupo que não existe (\"${v.onde}\")`);\n      continue;\n    }\n    conferidos.add(numero - 1);\n    if (fora.length) {\n      problemas.push(`Grupo ${numero}: ${fora.join('; ')}`);\n      grupo.resumo = '';\n    }\n  }\n\n  // O que o Revisor pulou não vai para o relatório sem conferência\n  if (!panoramaConferido && panorama) {\n    panorama = '';\n    erros.push('Revisor: não conferiu o panorama');\n  }\n  grupos.forEach((g, i) => {\n    if (!conferidos.has(i) && g.resumo) {\n      g.resumo = '';\n      erros.push(`Revisor: não conferiu o grupo ${i + 1}`);\n    }\n  });\n}\n\nconst resumo_revisao = {\n  problemas,\n  resumos_retirados: grupos.filter((g, i) => entrada.grupos[i].resumo && !g.resumo).length,\n  panorama_alterado: panorama !== entrada.panorama,\n  erros,\n};\n\nreturn [{ json: { ...entrada, panorama, grupos, resumo_revisao } }];"
+        "jsCode": "// Aplica a revisão: o que o Revisor apontou sai do relatório.\n// Resumo com problema (ou que ficou sem conferência) é apagado e o grupo fica\n// só com título e veículos; no panorama, saem só as frases com problema.\nconst entrada = $('Validar redação').first().json;\nconst resposta = $input.first().json;\nconst verificacoes = resposta.output?.verificacoes;\nconst grupos = entrada.grupos.map((g) => ({ ...g }));\nlet panorama = entrada.panorama;\nconst problemas = [];\nconst erros = [];\n\n// Deixa o texto comparável: minúsculo, sem acento e sem pontuação\nconst normalizar = (texto) =>\n  String(texto || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();\n\n// Tira do panorama a frase apontada; se não encontrar, tira o panorama inteiro\nconst retirarDoPanorama = (frase) => {\n  const alvo = normalizar(frase);\n  const frases = panorama.split(/(?<=[.!?])\\s+/).filter(Boolean);\n  const restantes = frases.filter((f) => {\n    const atual = normalizar(f);\n    return !(alvo && (atual.includes(alvo) || alvo.includes(atual)));\n  });\n  panorama = !alvo || restantes.length === frases.length ? '' : restantes.join(' ');\n};\n\nif (!Array.isArray(verificacoes)) {\n  // Sem revisão, nada do Redator vai para o relatório sem conferência\n  erros.push(`Revisor: ${resposta.error || 'resposta sem verificações'}`);\n  panorama = '';\n  grupos.forEach((g) => (g.resumo = ''));\n} else {\n  let panoramaConferido = false;\n  const conferidos = new Set();\n\n  for (const v of verificacoes) {\n    const fora = v.informacoes_fora_dos_titulos || [];\n    if (/panorama/i.test(v.onde)) {\n      panoramaConferido = true;\n      if (!fora.length) continue;\n      problemas.push(`Panorama: ${fora.join('; ')}`);\n      const frases = v.frases_com_problema || [];\n      if (!frases.length) panorama = '';\n      frases.forEach((frase) => retirarDoPanorama(frase));\n      continue;\n    }\n    const numero = Number(String(v.onde).replace(/\\D/g, ''));\n    const grupo = grupos[numero - 1];\n    if (!grupo) {\n      erros.push(`Revisor: verificou um grupo que não existe (\"${v.onde}\")`);\n      continue;\n    }\n    conferidos.add(numero - 1);\n    if (fora.length) {\n      problemas.push(`Grupo ${numero}: ${fora.join('; ')}`);\n      grupo.resumo = '';\n    }\n  }\n\n  // O que o Revisor pulou não vai para o relatório sem conferência\n  if (!panoramaConferido && panorama) {\n    panorama = '';\n    erros.push('Revisor: não conferiu o panorama');\n  }\n  grupos.forEach((g, i) => {\n    if (!conferidos.has(i) && g.resumo) {\n      g.resumo = '';\n      erros.push(`Revisor: não conferiu o grupo ${i + 1}`);\n    }\n  });\n}\n\nconst resumo_revisao = {\n  problemas,\n  resumos_retirados: grupos.filter((g, i) => entrada.grupos[i].resumo && !g.resumo).length,\n  panorama_alterado: panorama !== entrada.panorama,\n  erros,\n  concluido_em: Date.now(),\n};\n\nreturn [{ json: { ...entrada, panorama, grupos, resumo_revisao } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -348,7 +348,7 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
       "typeVersion": 1.2,
       "position": [
-        2736,
+        2960,
         160
       ],
       "id": "ccc80e2a-1675-4456-8dd2-a77eaf64d9e3",
@@ -362,20 +362,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Monta o relatório final a partir dos dados já revisados.\n// Só entram textos da IA que passaram pelo Revisor (panorama e resumos);\n// títulos, veículos, links, contagens e a ordem vêm todos dos dados.\nconst entrada = $input.first().json;\nconst config = $('Configuração').first().json;\nconst coletadas = $('Limpeza').all().length;\nconst agora = $now.setZone('America/Sao_Paulo');\nconst edicao = agora.hour < 14 ? 'manhã' : 'noite';\n\n// Formatação em HTML simples, aceito pelo Telegram e pelo Gmail\nconst escapar = (texto) => String(texto || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst veiculos = (g) => g.insercoes.map((i) => `<a href=\"${escapar(i.link)}\">${escapar(i.veiculo)}</a>`).join(' · ');\n\n// Em cada seção, as negativas vêm primeiro; depois, os fatos com mais veículos\nconst ordemTom = { negativo: 0, neutro: 1, positivo: 2 };\nconst ordenar = (lista) =>\n  [...lista].sort((a, b) => ordemTom[a.sentimento] - ordemTom[b.sentimento] || b.insercoes.length - a.insercoes.length);\n// Escreve \"1 fato\" ou \"2 fatos\"\nconst contar = (n, palavra) => `${n} ${palavra}${n === 1 ? '' : 's'}`;\nconst marca = (g) => (g.sentimento === 'negativo' ? '⚠️ ' : '');\n\nconst blocoCompleto = (g) => [`${marca(g)}<b>${escapar(g.titulo)}</b>`, g.resumo ? escapar(g.resumo) : null, veiculos(g)].filter(Boolean).join('\\n');\nconst blocoCurto = (g) => `${marca(g)}${escapar(g.titulo)}\\n${veiculos(g)}`;\n\nconst secao = (cabecalho, grupos, bloco) =>\n  grupos.length ? [cabecalho, ...ordenar(grupos).map(bloco)].join('\\n\\n') : null;\n\nconst { grupos } = entrada;\nconst tom = (s) => grupos.filter((g) => g.sentimento === s).length;\nconst insercoes = grupos.reduce((total, g) => total + g.insercoes.length, 0);\nconst mensagens = config.mensagens_chave\n  .map((m) => ({ m, total: grupos.filter((g) => g.mensagens_chave.includes(m)).length }))\n  .filter(({ total }) => total > 0)\n  .sort((a, b) => b.total - a.total);\n\nconst relatorio = [\n  `📰 <b>Radar de Notícias – ${escapar(config.tema)}</b>\\n${agora.toFormat('dd/LL/yyyy')} · edição da ${edicao}`,\n  entrada.panorama ? `<b>PANORAMA</b>\\n${escapar(entrada.panorama)}` : null,\n  [\n    '<b>NÚMEROS</b>',\n    `• ${coletadas} ${coletadas === 1 ? 'notícia nova' : 'notícias novas'}`,\n    `• ${contar(insercoes, 'relevante')}, sobre ${contar(grupos.length, 'fato')}`,\n    `• Tom: ${contar(tom('negativo'), 'negativo')}, ${contar(tom('neutro'), 'neutro')}, ${contar(tom('positivo'), 'positivo')}`,\n  ].join('\\n'),\n  secao('⭐ <b>DESTAQUES</b>', grupos.filter((g) => g.aderencia === 'alta'), blocoCompleto),\n  secao('📌 <b>SETOR</b>', grupos.filter((g) => g.aderencia === 'media'), blocoCompleto),\n  secao('🔎 <b>OUTRAS</b>', grupos.filter((g) => g.aderencia === 'baixa'), blocoCurto),\n  mensagens.length\n    ? ['<b>MENSAGENS-CHAVE</b>', ...mensagens.map(({ m, total }) => `• ${escapar(m)}: ${contar(total, 'fato')}`)].join('\\n')\n    : null,\n]\n  .filter(Boolean)\n  .join('\\n\\n');\n\nreturn [{ json: { relatorio, edicao, data: agora.toISODate(), ...entrada } }];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        560,
-        336
-      ],
-      "id": "b661cc55-3728-41ca-8610-5d806d856dae",
-      "name": "Montar relatório"
-    },
-    {
-      "parameters": {
-        "jsCode": "// Divide o relatório em mensagens, porque o Telegram aceita até 4.096 caracteres\n// e cerca de 100 formatações (negritos e links) em cada uma.\n// Cada seção começa em uma mensagem nova, e nada é cortado no meio de um bloco.\nconst MAX_CARACTERES = 3800;\nconst MAX_FORMATACOES = 90;\nconst { relatorio } = $input.first().json;\n\n// O limite conta o texto que aparece na tela, sem as tags e sem o endereço dos links\nconst tamanho = (texto) => texto.replace(/<[^>]+>/g, '').replace(/&(amp|lt|gt);/g, '&').length;\nconst formatacoes = (texto) => (texto.match(/<(b|a)[ >]/g) || []).length;\nconst iniciaSecao = (bloco) => /^(⭐|📌|🔎)/.test(bloco);\n\nconst mensagens = [];\nlet atual = '';\nfor (const bloco of relatorio.split('\\n\\n')) {\n  const junto = atual ? `${atual}\\n\\n${bloco}` : bloco;\n  const cabe = tamanho(junto) <= MAX_CARACTERES && formatacoes(junto) <= MAX_FORMATACOES;\n  if (atual && (iniciaSecao(bloco) || !cabe)) {\n    mensagens.push(atual);\n    atual = bloco;\n  } else {\n    atual = junto;\n  }\n}\nif (atual) mensagens.push(atual);\n\nreturn mensagens.map((mensagem) => ({ json: { mensagem } }));"
+        "jsCode": "// Divide o relatório em mensagens, porque o Telegram aceita até 4.096 caracteres,\n// cerca de 100 formatações (negritos e links) e um tamanho máximo somando\n// os endereços dos links em cada uma.\n// Cada seção começa em uma mensagem nova, e nada é cortado no meio de um bloco.\nconst MAX_CARACTERES = 3800;\nconst MAX_FORMATACOES = 90;\nconst MAX_ENDERECOS = 6000;\nconst { relatorio } = $('Montar relatório').first().json;\n\n// O limite conta o texto que aparece na tela, sem as tags e sem o endereço dos links\nconst tamanho = (texto) => texto.replace(/<[^>]+>/g, '').replace(/&(amp|lt|gt);/g, '&').length;\nconst formatacoes = (texto) => (texto.match(/<(b|a)[ >]/g) || []).length;\nconst enderecos = (texto) => (texto.match(/href=\"[^\"]*\"/g) || []).join('').length;\nconst iniciaSecao = (bloco) => /^(⭐|📌|🔎)/.test(bloco);\n\nconst mensagens = [];\nlet atual = '';\nfor (const bloco of relatorio.split('\\n\\n')) {\n  const junto = atual ? `${atual}\\n\\n${bloco}` : bloco;\n  const cabe = tamanho(junto) <= MAX_CARACTERES && formatacoes(junto) <= MAX_FORMATACOES && enderecos(junto) <= MAX_ENDERECOS;\n  if (atual && (iniciaSecao(bloco) || !cabe)) {\n    mensagens.push(atual);\n    atual = bloco;\n  } else {\n    atual = junto;\n  }\n}\nif (atual) mensagens.push(atual);\n\nreturn mensagens.map((mensagem) => ({ json: { mensagem } }));"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -412,7 +399,8 @@
           "id": "MUvzkwmdcSjvXbwY",
           "name": "Telegram - Radar"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -439,11 +427,12 @@
           "id": "XJ5vg24JgRjKkElu",
           "name": "Gmail - Radar"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "// Monta uma linha da aba \"noticias\" para cada inserção enviada no relatório.\n// Guarda só título, veículo, data, link, classificação e o resumo da IA.\nconst { grupos, edicao } = $('Montar relatório').first().json;\nconst fuso = 'America/Sao_Paulo';\nconst data_envio = $now.setZone(fuso).toFormat('dd/LL/yyyy HH:mm');\n\nconst linhas = grupos.flatMap((g) =>\n  g.insercoes.map((i) => ({\n    data_envio,\n    edicao,\n    titulo: i.titulo,\n    veiculo: i.veiculo,\n    link: i.link,\n    data_publicacao: DateTime.fromISO(i.data).setZone(fuso).toFormat('dd/LL/yyyy HH:mm'),\n    tom: g.sentimento,\n    aderencia: g.aderencia,\n    resumo: g.resumo,\n  }))\n);\n\nreturn linhas.map((linha) => ({ json: linha }));"
+        "jsCode": "// Monta uma linha da aba \"noticias\" para cada inserção enviada no relatório.\n// Guarda só título, veículo, data, link, classificação e o resumo da IA.\n// Se nenhum canal entregou, não registra: as notícias ficam para a próxima execução\nif (!$input.first().json.entregue) return [];\nconst { grupos, edicao } = $('Montar relatório').first().json;\nconst fuso = 'America/Sao_Paulo';\nconst data_envio = $now.setZone(fuso).toFormat('dd/LL/yyyy HH:mm');\n\nconst linhas = grupos.flatMap((g) =>\n  g.insercoes.map((i) => ({\n    data_envio,\n    edicao,\n    titulo: i.titulo,\n    veiculo: i.veiculo,\n    link: i.link,\n    data_publicacao: DateTime.fromISO(i.data).setZone(fuso).toFormat('dd/LL/yyyy HH:mm'),\n    tom: g.sentimento,\n    aderencia: g.aderencia,\n    resumo: g.resumo,\n  }))\n);\n\nreturn linhas.map((linha) => ({ json: linha }));"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -587,7 +576,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Monta a linha da aba \"log\", com o resumo desta execução.\n// O início da execução é o que a próxima usa para buscar só o que saiu depois.\nconst { edicao, resumo_triagem, resumo_redacao, resumo_revisao } = $('Montar relatório').first().json;\nconst coleta = $('Limpeza').first().json.resumo_coleta;\nconst erros = [...resumo_triagem.erros, ...resumo_redacao.erros, ...resumo_revisao.erros];\n\nreturn [{ json: {\n  inicio_execucao: DateTime.fromISO(coleta.inicio).setZone('America/Sao_Paulo').toISO(),\n  edicao,\n  coletadas: coleta.coletadas,\n  classificadas: resumo_triagem.classificadas,\n  relevantes: resumo_redacao.insercoes,\n  fatos: resumo_redacao.grupos_relevantes,\n  resumos_retirados: resumo_revisao.resumos_retirados,\n  erros: erros.join(' | '),\n} }];"
+        "jsCode": "// Monta a linha da aba \"log\", com o resumo desta execução.\n// O início da execução é o que a próxima usa para buscar só o que saiu depois.\nconst { edicao, resumo_triagem, resumo_redacao, resumo_revisao } = $('Montar relatório').first().json;\nconst { entregue, erros_envio } = $('Conferir envios').first().json;\nconst coleta = $('Limpeza').first().json.resumo_coleta;\nconst erros = [...resumo_triagem.erros, ...resumo_redacao.erros, ...resumo_revisao.erros, ...erros_envio];\n\n// Tempo de cada agente, em segundos: do fim da etapa anterior ao fim da etapa dele\nconst segundos = (de, ate) => (de && ate ? Math.round((ate - de) / 1000) : '');\n\nreturn [{ json: {\n  inicio_execucao: DateTime.fromISO(coleta.inicio).setZone('America/Sao_Paulo').toISO(),\n  edicao,\n  coletadas: coleta.coletadas,\n  classificadas: resumo_triagem.classificadas,\n  relevantes: resumo_redacao.insercoes,\n  fatos: resumo_redacao.grupos_relevantes,\n  resumos_retirados: resumo_revisao.resumos_retirados,\n  erros: erros.join(' | '),\n  entregue: entregue ? 'sim' : 'não',\n  tempo_triagem_s: segundos(Date.parse(coleta.inicio), resumo_triagem.concluido_em),\n  tempo_redator_s: segundos(resumo_triagem.concluido_em, resumo_redacao.concluido_em),\n  tempo_revisor_s: segundos(resumo_redacao.concluido_em, resumo_revisao.concluido_em),\n} }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -782,7 +771,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Define até onde a busca volta: desde o início da última execução, mais 1 hora de folga.\n// Sem histórico, usa 24 horas. O teto de 7 dias é o limite prático do RSS do Google News.\nconst PADRAO_HORAS = 24;\nconst FOLGA_HORAS = 1;\nconst TETO_HORAS = 168;\n\nconst inicios = $('Ler log').all()\n  .map((item) => DateTime.fromISO(String(item.json.inicio_execucao || '')))\n  .filter((data) => data.isValid);\n\nconst horas = inicios.length\n  ? Math.ceil($now.diff(DateTime.max(...inicios), 'hours').hours) + FOLGA_HORAS\n  : PADRAO_HORAS;\nconst horas_janela = Math.min(horas, TETO_HORAS);\n\nreturn [{ json: { horas_janela, dias_busca: Math.ceil(horas_janela / 24) } }];"
+        "jsCode": "// Define até onde a busca volta: desde o início da última execução, mais 1 hora de folga.\n// Sem histórico, usa 24 horas. O teto de 7 dias é o limite prático do RSS do Google News.\nconst PADRAO_HORAS = 24;\nconst FOLGA_HORAS = 1;\nconst TETO_HORAS = 168;\n\n// Execução em que nada foi entregue não conta: as notícias dela precisam ser buscadas de novo\nconst inicios = $('Ler log').all()\n  .filter((item) => item.json.entregue !== 'não')\n  .map((item) => DateTime.fromISO(String(item.json.inicio_execucao || '')))\n  .filter((data) => data.isValid);\n\nconst horas = inicios.length\n  ? Math.ceil($now.diff(DateTime.max(...inicios), 'hours').hours) + FOLGA_HORAS\n  : PADRAO_HORAS;\nconst horas_janela = Math.min(horas, TETO_HORAS);\n\nreturn [{ json: { horas_janela, dias_busca: Math.ceil(horas_janela / 24) } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -792,6 +781,153 @@
       ],
       "id": "7d33b30a-95c0-4ce3-920e-fce6939bfc78",
       "name": "Calcular janela"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Monta o relatório final a partir dos dados já revisados.\n// Só entram textos da IA que passaram pelo Revisor (panorama e resumos);\n// títulos, veículos, links, contagens e a ordem vêm todos dos dados.\nconst entrada = $input.first().json;\nconst config = $('Configuração').first().json;\nconst coletadas = $('Limpeza').all().length;\nconst agora = $now.setZone('America/Sao_Paulo');\nconst edicao = agora.hour < 14 ? 'manhã' : 'noite';\n\n// Formatação em HTML simples, aceito pelo Telegram e pelo Gmail\nconst escapar = (texto) => String(texto || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst veiculos = (g) => g.insercoes.map((i) => `<a href=\"${escapar(i.link)}\">${escapar(i.veiculo)}</a>`).join(' · ');\n\n// Em cada seção, as negativas vêm primeiro; depois, os fatos com mais veículos\nconst ordemTom = { negativo: 0, neutro: 1, positivo: 2 };\nconst ordenar = (lista) =>\n  [...lista].sort((a, b) => ordemTom[a.sentimento] - ordemTom[b.sentimento] || b.insercoes.length - a.insercoes.length);\n// Escreve \"1 fato\" ou \"2 fatos\"\nconst contar = (n, palavra) => `${n} ${palavra}${n === 1 ? '' : 's'}`;\nconst marca = (g) => (g.sentimento === 'negativo' ? '⚠️ ' : '');\n\nconst blocoCompleto = (g) => [`${marca(g)}<b>${escapar(g.titulo)}</b>`, g.resumo ? escapar(g.resumo) : null, veiculos(g)].filter(Boolean).join('\\n');\nconst blocoCurto = (g) => `${marca(g)}${escapar(g.titulo)}\\n${veiculos(g)}`;\n\nconst secao = (cabecalho, grupos, bloco) =>\n  grupos.length ? [cabecalho, ...ordenar(grupos).map(bloco)].join('\\n\\n') : null;\n\nconst { grupos } = entrada;\nconst tom = (s) => grupos.filter((g) => g.sentimento === s).length;\nconst insercoes = grupos.reduce((total, g) => total + g.insercoes.length, 0);\nconst mensagens = config.mensagens_chave\n  .map((m) => ({ m, total: grupos.filter((g) => g.mensagens_chave.includes(m)).length }))\n  .filter(({ total }) => total > 0)\n  .sort((a, b) => b.total - a.total);\n\nconst relatorio = [\n  `📰 <b>Radar de Notícias – ${escapar(config.tema)}</b>\\n${agora.toFormat('dd/LL/yyyy')} · edição da ${edicao}`,\n  entrada.panorama ? `<b>PANORAMA</b>\\n${escapar(entrada.panorama)}` : null,\n  [\n    '<b>NÚMEROS</b>',\n     `• ${coletadas} ${coletadas === 1 ? 'notícia nova' : 'notícias novas'}`,\n    `• ${contar(insercoes, 'relevante')}, sobre ${contar(grupos.length, 'fato')}`,\n    `• Tom: ${contar(tom('negativo'), 'negativo')}, ${contar(tom('neutro'), 'neutro')}, ${contar(tom('positivo'), 'positivo')}`,\n  ].join('\\n'),\n  secao('⭐ <b>DESTAQUES</b>', grupos.filter((g) => g.aderencia === 'alta'), blocoCompleto),\n  secao('📌 <b>SETOR</b>', grupos.filter((g) => g.aderencia === 'media'), blocoCompleto),\n  secao('🔎 <b>OUTRAS</b>', grupos.filter((g) => g.aderencia === 'baixa'), blocoCurto),\n  mensagens.length\n    ? ['<b>MENSAGENS-CHAVE</b>', ...mensagens.map(({ m, total }) => `• ${escapar(m)}: ${contar(total, 'fato')}`)].join('\\n')\n    : null,\n]\n  .filter(Boolean)\n  .join('\\n\\n');\n\nreturn [{ json: { relatorio, edicao, data: agora.toISODate(), ...entrada } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        336
+      ],
+      "id": "b661cc55-3728-41ca-8610-5d806d856dae",
+      "name": "Montar relatório"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Confere o que foi entregue. Com On Error em Continue, o canal que falha\n// devolve um item com \"error\" em vez de parar o fluxo.\nconst telegram = $('Send a text message').all();\nconst gmail = $('Send a message').all();\n\nconst falha = (canal, itens) =>\n  itens.filter(({ json }) => json.error).slice(0, 1).map(({ json }) => `${canal}: ${json.error}`);\n\nconst telegram_ok = telegram.length > 0 && telegram.every(({ json }) => json.ok === true);\nconst gmail_ok = gmail.length > 0 && gmail.every(({ json }) => Boolean(json.id));\n\nreturn [{ json: {\n  telegram_ok,\n  gmail_ok,\n  entregue: telegram_ok || gmail_ok,\n  erros_envio: [...falha('Telegram', telegram), ...falha('Gmail', gmail)],\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1232,
+        768
+      ],
+      "id": "ee84cb91-b2b7-4363-b072-814d51224597",
+      "name": "Conferir envios"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "c205a1af-6a5b-4d7b-ba74-6c883ea98ac4",
+              "leftValue": "={{ $json.resumo_coleta.aproveitadas }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        1664,
+        -160
+      ],
+      "id": "2970d8fc-daf3-4d5e-99c5-d187e5061c36",
+      "name": "Tem notícias novas?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "afc72264-d081-41fb-a21f-c9438a19c5c0",
+              "leftValue": "={{ $json.noticias.filter((n) => n.relevante).length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        2768,
+        -128
+      ],
+      "id": "3d29c7ae-73c7-4bc8-a62a-226b4f0c97a6",
+      "name": "Tem relevantes?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Monta o aviso do Telegram e a linha do log quando não há o que enviar.\n// Chega aqui de dois lugares: sem notícia nova (Limpeza) ou sem nenhuma relevante (Triagem).\nconst config = $('Configuração').first().json;\nconst coleta = $('Limpeza').first().json.resumo_coleta;\nconst triagem = $('Preparar redação').isExecuted ? $('Preparar redação').first().json.resumo_triagem : null;\nconst agora = $now.setZone('America/Sao_Paulo');\nconst edicao = agora.hour < 14 ? 'manhã' : 'noite';\nconst escapar = (texto) => String(texto || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n\nlet motivo = 'Sem notícias novas nesta edição.';\nif (triagem) {\n  motivo = triagem.classificadas === 1\n    ? 'A única notícia nova não foi relevante.'\n    : `Nenhuma das ${triagem.classificadas} notícias novas foi relevante.`;\n}\n\nconst mensagem = [\n  `📰 <b>Radar de Notícias – ${escapar(config.tema)}</b>`,\n  `${agora.toFormat('dd/LL/yyyy')} · edição da ${edicao}`,\n  '',\n  motivo,\n].join('\\n');\n\n// \"sem novidades\" conta como execução bem-sucedida: a próxima busca começa daqui\nconst log = {\n  inicio_execucao: DateTime.fromISO(coleta.inicio).setZone('America/Sao_Paulo').toISO(),\n  edicao,\n  coletadas: coleta.coletadas,\n  classificadas: triagem ? triagem.classificadas : 0,\n  relevantes: 0,\n  fatos: 0,\n  resumos_retirados: 0,\n  erros: triagem ? triagem.erros.join(' | ') : '',\n  entregue: 'sem novidades',\n};\n\nreturn [{ json: { mensagem, log } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3024,
+        -272
+      ],
+      "id": "23dd4686-ccaa-4a07-83b3-4fa0cbfabdc3",
+      "name": "Sem novidades"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Configuração').first().json.telegram_chat_id }}",
+        "text": "={{ $json.mensagem }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3280,
+        -272
+      ],
+      "id": "c1b0d86e-6680-472c-b971-406bd16c733f",
+      "name": "Avisar sem novidades",
+      "webhookId": "48ea38a7-f086-4a9e-a251-2b7a446b6264",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "telegramApi": {
+          "id": "MUvzkwmdcSjvXbwY",
+          "name": "Telegram - Radar"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Linha do log da execução sem novidades, com o erro do aviso, se ele falhou\nconst { log } = $('Sem novidades').first().json;\nconst aviso = $input.first().json;\nconst erros = [log.erros, aviso.error ? `Telegram: ${aviso.error}` : ''].filter(Boolean);\n\nreturn [{ json: { ...log, erros: erros.join(' | ') } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3504,
+        -272
+      ],
+      "id": "b01e3d59-9bb7-485b-9b7c-4e1be689899e",
+      "name": "Log sem novidades"
     }
   ],
   "pinData": {},
@@ -855,7 +991,7 @@
       "main": [
         [
           {
-            "node": "Montar lotes",
+            "node": "Tem notícias novas?",
             "type": "main",
             "index": 0
           }
@@ -910,7 +1046,7 @@
       "main": [
         [
           {
-            "node": "Redator",
+            "node": "Tem relevantes?",
             "type": "main",
             "index": 0
           }
@@ -1027,22 +1163,6 @@
         ]
       ]
     },
-    "Montar relatório": {
-      "main": [
-        [
-          {
-            "node": "Dividir para Telegram",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Send a message",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Dividir para Telegram": {
       "main": [
         [
@@ -1058,12 +1178,7 @@
       "main": [
         [
           {
-            "node": "Preparar notícias",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Preparar log",
+            "node": "Dividir para Telegram",
             "type": "main",
             "index": 0
           }
@@ -1124,9 +1239,116 @@
           }
         ]
       ]
+    },
+    "Montar relatório": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message": {
+      "main": [
+        [
+          {
+            "node": "Conferir envios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conferir envios": {
+      "main": [
+        [
+          {
+            "node": "Preparar notícias",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Preparar log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem notícias novas?": {
+      "main": [
+        [
+          {
+            "node": "Montar lotes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sem novidades",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem relevantes?": {
+      "main": [
+        [
+          {
+            "node": "Redator",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sem novidades",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sem novidades": {
+      "main": [
+        [
+          {
+            "node": "Avisar sem novidades",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisar sem novidades": {
+      "main": [
+        [
+          {
+            "node": "Log sem novidades",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log sem novidades": {
+      "main": [
+        [
+          {
+            "node": "Registrar log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
@@ -1134,9 +1356,10 @@
     "timezone": "America/Sao_Paulo",
     "callerPolicy": "workflowsFromSameOwner",
     "availableInMCP": false,
-    "executionTimeout": 900
+    "executionTimeout": 1200,
+    "errorWorkflow": "pg8622UgU8WrwCVy"
   },
-  "versionId": "e43ef097-15a1-4360-bbfd-e11432c47900",
+  "versionId": "913ccf97-81c5-445d-84dc-8f71938ac9ed",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "02ce8131a7a8391842845720ad2e99cdff21a3165eda3d06f336553d3cf42fae"
